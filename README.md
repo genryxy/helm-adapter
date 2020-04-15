@@ -8,4 +8,14 @@
 [![Hits-of-Code](https://hitsofcode.com/github/artipie/helm-adapter)](https://hitsofcode.com/view/github/artipie/helm-adapter)
 [![PDD status](http://www.0pdd.com/svg?name=artipie/helm-adapter)](http://www.0pdd.com/p?name=artipie/helm-adapter)
 
-Helm repository adapter.
+## Helm repository adapter.
+
+[Usage](https://helm.sh/docs/intro/using_helm/).
+
+
+## How to contribute
+
+Fork repository, make changes, send us a pull request. We will review
+your changes and apply them to the `master` branch shortly, provided
+they don't violate our quality standards. To avoid frustration, before
+sending us your pull request please run full Maven build:
