@@ -23,7 +23,7 @@
  */
 
 /**
- * Pypi files.
+ * Helm files.
  *
  * @since 0.1
  */
