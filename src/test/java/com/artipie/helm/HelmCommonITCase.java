@@ -24,7 +24,6 @@
 
 package com.artipie.helm;
 
-import com.artipie.helm.misc.NextSafeAvailablePort;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.vertx.VertxSliceServer;
 import io.vertx.reactivex.core.Vertx;
@@ -45,14 +44,12 @@ public class HelmCommonITCase {
     @Test
     public void notImplemented() throws IOException {
         final Vertx vertx = Vertx.vertx();
-        final int port = new NextSafeAvailablePort().value();
         final VertxSliceServer server = new VertxSliceServer(
             vertx,
-            new HelmSlice(),
-            port
+            new HelmSlice()
         );
         final WebClient web = WebClient.create(vertx);
-        server.start();
+        final int port = server.start();
         final int code = web.post(port, "localhost", "/api/v1/charts")
             .rxSendBuffer(Buffer.buffer())
             .blockingGet()
