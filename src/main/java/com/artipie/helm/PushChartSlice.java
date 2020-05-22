@@ -29,20 +29,23 @@ import com.artipie.http.Response;
 import com.artipie.http.Slice;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.http.rs.RsWithStatus;
-import org.reactivestreams.Publisher;
-
 import java.nio.ByteBuffer;
 import java.util.Map;
+import org.reactivestreams.Publisher;
 
 /**
  * A Slice which accept archived charts, save them into a storage and trigger index.yml reindexing.
+ *
+ * @since 0.2
+ * @checkstyle MethodBodyCommentsCheck (500 lines)
  */
+@SuppressWarnings({"PMD.UnusedPrivateField", "PMD.SingularField"})
 public final class PushChartSlice implements Slice {
 
     /**
      * The Storage.
      */
-    private Storage storage;
+    private final Storage storage;
 
     /**
      * Ctor.

@@ -38,6 +38,7 @@ import com.artipie.http.slice.SliceSimple;
  * HelmSlice.
  *
  * @since 0.1
+ * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
 public final class HelmSlice extends Slice.Wrap {
 
