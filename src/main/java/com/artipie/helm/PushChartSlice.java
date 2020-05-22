@@ -25,46 +25,40 @@
 package com.artipie.helm;
 
 import com.artipie.asto.Storage;
+import com.artipie.http.Response;
 import com.artipie.http.Slice;
-import com.artipie.http.rq.RqMethod;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.http.rs.RsWithStatus;
-import com.artipie.http.rt.RtRule;
-import com.artipie.http.rt.SliceRoute;
-import com.artipie.http.slice.SliceDownload;
-import com.artipie.http.slice.SliceSimple;
+import org.reactivestreams.Publisher;
+
+import java.nio.ByteBuffer;
+import java.util.Map;
 
 /**
- * HelmSlice.
- *
- * @since 0.1
+ * A Slice which accept archived charts, save them into a storage and trigger index.yml reindexing.
  */
-public final class HelmSlice extends Slice.Wrap {
+public final class PushChartSlice implements Slice {
+
+    /**
+     * The Storage.
+     */
+    private Storage storage;
 
     /**
      * Ctor.
-     *
      * @param storage The storage.
      */
-    protected HelmSlice(final Storage storage) {
-        super(
-            new SliceRoute(
-                new SliceRoute.Path(
-                    new RtRule.Multiple(
-                        new RtRule.ByMethod(RqMethod.POST),
-                        new RtRule.ByMethod(RqMethod.PUT)
-                    ),
-                    new PushChartSlice(storage)
-                ),
-                new SliceRoute.Path(
-                    new RtRule.ByMethod(RqMethod.GET),
-                    new SliceDownload(storage)
-                ),
-                new SliceRoute.Path(
-                    RtRule.FALLBACK,
-                    new SliceSimple(new RsWithStatus(RsStatus.NOT_FOUND))
-                )
-            )
-        );
+    public PushChartSlice(final Storage storage) {
+        this.storage = storage;
+    }
+
+    @Override
+    public Response response(final String line,
+        final Iterable<Map.Entry<String, String>> headers,
+        final Publisher<ByteBuffer> body) {
+        // @todo #13:30min Implement PushChart endpoint
+        //  The slice should do the following: accept archived charts, save them into a storage
+        //  and trigger index.yml reindexing.
+        return new RsWithStatus(Response.EMPTY, RsStatus.NOT_IMPLEMENTED);
     }
 }
