@@ -46,7 +46,7 @@ public final class HelmSlice extends Slice.Wrap {
      *
      * @param storage The storage.
      */
-    protected HelmSlice(final Storage storage) {
+    public HelmSlice(final Storage storage) {
         super(
             new SliceRoute(
                 new SliceRoute.Path(
@@ -62,7 +62,7 @@ public final class HelmSlice extends Slice.Wrap {
                 ),
                 new SliceRoute.Path(
                     RtRule.FALLBACK,
-                    new SliceSimple(new RsWithStatus(RsStatus.NOT_FOUND))
+                    new SliceSimple(new RsWithStatus(RsStatus.METHOD_NOT_ALLOWED))
                 )
             )
         );
