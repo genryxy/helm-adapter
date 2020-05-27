@@ -40,6 +40,8 @@ import io.reactivex.Single;
     "PMD.UnusedFormalParameter",
     "PMD.AvoidDuplicateLiterals",
     "PMD.SingularField"})
+// @todo #12:30min Test for TgzArchive
+//  For now this method is not implemented, but we definitely need a test for this class.
 final class TgzArchive {
 
     /**
