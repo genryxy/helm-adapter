@@ -27,7 +27,7 @@ import com.artipie.asto.Storage;
 import io.reactivex.Completable;
 
 /**
- * Index.yaml file. The mail file in a chart repo.
+ * Index.yaml file. The main file in a chart repo.
  *
  * @since 0.2
  * @checkstyle MethodBodyCommentsCheck (500 lines)
