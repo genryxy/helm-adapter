@@ -39,7 +39,7 @@ import io.reactivex.Completable;
     "PMD.UnusedFormalParameter",
     "PMD.AvoidDuplicateLiterals",
     "PMD.SingularField"})
-class IndexYaml {
+final class IndexYaml {
 
     /**
      * The storage.
