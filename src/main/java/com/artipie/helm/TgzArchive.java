@@ -40,7 +40,7 @@ import io.reactivex.Single;
     "PMD.UnusedFormalParameter",
     "PMD.AvoidDuplicateLiterals",
     "PMD.SingularField"})
-public class TgzArchive {
+class TgzArchive {
 
     /**
      * The archive content.
