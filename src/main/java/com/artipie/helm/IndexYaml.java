@@ -50,7 +50,7 @@ final class IndexYaml {
      * Ctor.
      * @param storage The storage.
      */
-    public IndexYaml(final Storage storage) {
+    IndexYaml(final Storage storage) {
         this.storage = storage;
     }
 

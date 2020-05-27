@@ -29,7 +29,8 @@ import io.reactivex.Single;
 
 /**
  * A .tgz archive file.
- *
+ * @todo #12:30min Test for TgzArchive
+ *  For now this method is not implemented, but we definitely need a test for this class.
  * @since 0.2
  * @checkstyle MethodBodyCommentsCheck (500 lines)
  * @checkstyle NonStaticMethodCheck (500 lines)
@@ -40,8 +41,6 @@ import io.reactivex.Single;
     "PMD.UnusedFormalParameter",
     "PMD.AvoidDuplicateLiterals",
     "PMD.SingularField"})
-// @todo #12:30min Test for TgzArchive
-//  For now this method is not implemented, but we definitely need a test for this class.
 final class TgzArchive {
 
     /**
@@ -53,7 +52,7 @@ final class TgzArchive {
      * Ctor.
      * @param content The archive content.
      */
-    public TgzArchive(final byte[] content) {
+    TgzArchive(final byte[] content) {
         this.content = content;
     }
 
