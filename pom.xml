@@ -57,7 +57,7 @@ SOFTWARE.
     <dependency>
       <groupId>com.artipie</groupId>
       <artifactId>asto</artifactId>
-      <version>0.17</version>
+      <version>0.19.2</version>
     </dependency>
     <dependency>
       <groupId>org.reactivestreams</groupId>
@@ -67,7 +67,7 @@ SOFTWARE.
     <dependency>
       <groupId>com.artipie</groupId>
       <artifactId>http</artifactId>
-      <version>0.7.1</version>
+      <version>0.9.2</version>
     </dependency>
     <dependency>
       <groupId>io.vertx</groupId>

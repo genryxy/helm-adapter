@@ -27,8 +27,11 @@ package com.artipie.helm;
 import com.artipie.asto.Storage;
 import com.artipie.http.Response;
 import com.artipie.http.Slice;
+import com.artipie.http.async.AsyncResponse;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.http.rs.RsWithStatus;
+import com.artipie.http.rs.StandardRs;
+import io.reactivex.Single;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import org.reactivestreams.Publisher;
@@ -40,7 +43,7 @@ import org.reactivestreams.Publisher;
  * @since 0.2
  * @checkstyle MethodBodyCommentsCheck (500 lines)
  */
-@SuppressWarnings({"PMD.UnusedPrivateField", "PMD.SingularField"})
+@SuppressWarnings({"PMD.UnusedPrivateField", "PMD.SingularField", "PMD.UnusedFormalParameter"})
 public final class PushChartSlice implements Slice {
 
     /**
@@ -60,9 +63,31 @@ public final class PushChartSlice implements Slice {
     public Response response(final String line,
         final Iterable<Map.Entry<String, String>> headers,
         final Publisher<ByteBuffer> body) {
-        // @todo #13:30min Implement PushChart endpoint
-        //  The slice should do the following: accept archived charts, save them into a storage
-        //  and trigger index.yml reindexing.
-        return new RsWithStatus(Response.EMPTY, RsStatus.NOT_IMPLEMENTED);
+        return new AsyncResponse(this.response(body));
+    }
+
+    /**
+     * The reactive response.
+     * @param body The body
+     * @return The response
+     */
+    private Single<Response> response(final Publisher<ByteBuffer> body) {
+        return memory(body).flatMapCompletable(
+            arch -> arch.save(this.storage).flatMapCompletable(
+                key -> new IndexYaml(this.storage).update(arch)
+            )
+        ).andThen(Single.just(new RsWithStatus(StandardRs.EMPTY, RsStatus.OK)));
+    }
+
+    /**
+     * Loads bytes into the memory.
+     * @param body The body.
+     * @return Bytes in a single byte array
+     */
+    private static Single<TgzArchive> memory(final Publisher<ByteBuffer> body) {
+        // @todo #12:30min Generate TgzArchive from byte flow
+        //  For now this method is not implemented. Byte flow of archive data should be collected
+        //  together in order to instantiate a TgzArchive instance.
+        return Single.error(new IllegalStateException("Not Implemented"));
     }
 }
