@@ -24,6 +24,7 @@
 
 package com.artipie.helm;
 
+import com.artipie.asto.Remaining;
 import com.artipie.asto.Storage;
 import com.artipie.http.Response;
 import com.artipie.http.Slice;
@@ -31,8 +32,11 @@ import com.artipie.http.async.AsyncResponse;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.http.rs.RsWithStatus;
 import com.artipie.http.rs.StandardRs;
+import io.reactivex.Flowable;
 import io.reactivex.Single;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
 import org.reactivestreams.Publisher;
 
@@ -67,6 +71,26 @@ public final class PushChartSlice implements Slice {
     }
 
     /**
+     * Convert buffers into a byte array.
+     * @param bufs The list of buffers.
+     * @return The byte array.
+     */
+    static byte[] bufsToByteArr(final List<ByteBuffer> bufs) {
+        final Integer size = bufs.stream()
+            .map(Buffer::remaining)
+            .reduce(Integer::sum)
+            .orElse(0);
+        final byte[] bytes = new byte[size];
+        int pos = 0;
+        for (final ByteBuffer buf : bufs) {
+            final byte[] tocopy = new Remaining(buf).bytes();
+            System.arraycopy(tocopy, 0, bytes, pos, tocopy.length);
+            pos += tocopy.length;
+        }
+        return bytes;
+    }
+
+    /**
      * The reactive response.
      * @param body The body
      * @return The response
@@ -85,9 +109,8 @@ public final class PushChartSlice implements Slice {
      * @return Bytes in a single byte array
      */
     private static Single<TgzArchive> memory(final Publisher<ByteBuffer> body) {
-        // @todo #12:30min Generate TgzArchive from byte flow
-        //  For now this method is not implemented. Byte flow of archive data should be collected
-        //  together in order to instantiate a TgzArchive instance.
-        return Single.error(new IllegalStateException("Not Implemented"));
+        return Flowable.fromPublisher(body)
+            .toList()
+            .map(bufs -> new TgzArchive(bufsToByteArr(bufs)));
     }
 }
