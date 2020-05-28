@@ -74,11 +74,10 @@ final class TgzArchive {
             );
             TarArchiveEntry entry;
             while ((entry = taris.getNextTarEntry()) != null) {
-                if (!entry.getName().endsWith("Chart.yaml")) {
-                    continue;
+                if (entry.getName().endsWith("Chart.yaml")) {
+                    final Map<String, Object> load = new Yaml().load(taris);
+                    return String.format("%s-%s.tgz", load.get("name"), load.get("version"));
                 }
-                final Map<String, Object> load = new Yaml().load(taris);
-                return String.format("%s-%s.tgz", load.get("name"), load.get("version"));
             }
             throw new IllegalStateException("Chart.yaml wasn't found file");
         } catch (final IOException exc) {
