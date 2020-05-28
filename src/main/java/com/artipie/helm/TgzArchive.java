@@ -23,9 +23,14 @@
  */
 package com.artipie.helm;
 
+import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
+import com.artipie.asto.rx.RxStorageWrapper;
+import io.reactivex.Flowable;
 import io.reactivex.Single;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 
 /**
  * A .tgz archive file.
@@ -34,6 +39,7 @@ import io.reactivex.Single;
  * @since 0.2
  * @checkstyle MethodBodyCommentsCheck (500 lines)
  * @checkstyle NonStaticMethodCheck (500 lines)
+ * @checkstyle AvoidInlineConditionalsCheck (500 lines)
  */
 @SuppressWarnings({"PMD.UnusedFormalParameter",
     "PMD.UnusedPrivateField",
@@ -73,10 +79,24 @@ final class TgzArchive {
      * @return Asto location, where archive is save.
      */
     public Single<Key> save(final Storage storage) {
-        // @todo #12:30min Save the archive into Asto.
-        //  For now this method is not implemented. The archive should be saved with a key name,
-        //  obtained from TgzArchive#name().
-        return Single.error(new IllegalStateException("Not Implemented"));
+        final int eightkb = 8 * 1024;
+        final int last = this.content.length % eightkb == 0 ? 0 : 1;
+        final int chunks = this.content.length / eightkb + last;
+        final ArrayList<ByteBuffer> arr = new ArrayList<>(chunks);
+        for (int idx = 0; idx < chunks; idx += 1) {
+            final byte[] bytes;
+            if (idx == chunks - 1 && last == 1) {
+                bytes = new byte[this.content.length % eightkb];
+            } else {
+                bytes = new byte[eightkb];
+            }
+            System.arraycopy(this.content, idx * eightkb, bytes, 0, bytes.length);
+            arr.add(ByteBuffer.wrap(bytes));
+        }
+        final Key.From key = new Key.From(this.name());
+        return new RxStorageWrapper(storage)
+            .save(key, new Content.From(Flowable.fromIterable(arr)))
+            .andThen(Single.just(key));
     }
 
 }
