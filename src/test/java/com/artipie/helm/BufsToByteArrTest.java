@@ -24,48 +24,34 @@
 
 package com.artipie.helm;
 
-import com.artipie.asto.Storage;
-import com.artipie.http.Slice;
-import com.artipie.http.rq.RqMethod;
-import com.artipie.http.rs.RsStatus;
-import com.artipie.http.rs.RsWithStatus;
-import com.artipie.http.rt.RtRule;
-import com.artipie.http.rt.SliceRoute;
-import com.artipie.http.slice.SliceDownload;
-import com.artipie.http.slice.SliceSimple;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.List;
+import org.hamcrest.MatcherAssert;
+import org.hamcrest.core.IsEqual;
+import org.junit.jupiter.api.Test;
 
 /**
- * HelmSlice.
+ * Test for {@link PushChartSlice#bufsToByteArr(List)}.
  *
  * @since 0.1
- * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
-public final class HelmSlice extends Slice.Wrap {
+public class BufsToByteArrTest {
 
-    /**
-     * Ctor.
-     *
-     * @param storage The storage.
-     */
-    public HelmSlice(final Storage storage) {
-        super(
-            new SliceRoute(
-                new SliceRoute.Path(
-                    new RtRule.Multiple(
-                        new RtRule.ByMethod(RqMethod.POST),
-                        new RtRule.ByMethod(RqMethod.PUT)
-                    ),
-                    new PushChartSlice(storage)
-                ),
-                new SliceRoute.Path(
-                    new RtRule.ByMethod(RqMethod.GET),
-                    new SliceDownload(storage)
-                ),
-                new SliceRoute.Path(
-                    RtRule.FALLBACK,
-                    new SliceSimple(new RsWithStatus(RsStatus.METHOD_NOT_ALLOWED))
+    @Test
+    public void copyIsCorrect() {
+        final String actual = new String(
+            PushChartSlice.bufsToByteArr(
+                Arrays.asList(
+                    ByteBuffer.wrap("123".getBytes()),
+                    ByteBuffer.wrap("456".getBytes()),
+                    ByteBuffer.wrap("789".getBytes())
                 )
             )
+        );
+        MatcherAssert.assertThat(
+            actual,
+            new IsEqual<>("123456789")
         );
     }
 }

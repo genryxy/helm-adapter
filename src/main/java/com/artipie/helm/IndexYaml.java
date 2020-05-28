@@ -21,46 +21,48 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-
 package com.artipie.helm;
 
-import com.artipie.http.rs.RsStatus;
-import com.artipie.vertx.VertxSliceServer;
-import io.vertx.reactivex.core.Vertx;
-import io.vertx.reactivex.core.buffer.Buffer;
-import io.vertx.reactivex.ext.web.client.WebClient;
-import java.io.IOException;
-import org.hamcrest.MatcherAssert;
-import org.hamcrest.core.IsEqual;
-import org.junit.jupiter.api.Test;
+import com.artipie.asto.Storage;
+import io.reactivex.Completable;
 
 /**
- * HelmCommonITCase.
+ * Index.yaml file. The main file in a chart repo.
  *
- * @since 0.1
+ * @since 0.2
+ * @checkstyle MethodBodyCommentsCheck (500 lines)
+ * @checkstyle NonStaticMethodCheck (500 lines)
  */
-public class HelmCommonITCase {
+@SuppressWarnings({"PMD.UnusedFormalParameter",
+    "PMD.UnusedPrivateField",
+    "PMD.ArrayIsStoredDirectly",
+    "PMD.UnusedFormalParameter",
+    "PMD.AvoidDuplicateLiterals",
+    "PMD.SingularField"})
+final class IndexYaml {
 
-    @Test
-    public void notImplemented() throws IOException {
-        final Vertx vertx = Vertx.vertx();
-        final VertxSliceServer server = new VertxSliceServer(
-            vertx,
-            new HelmSlice()
-        );
-        final WebClient web = WebClient.create(vertx);
-        final int port = server.start();
-        final int code = web.post(port, "localhost", "/api/v1/charts")
-            .rxSendBuffer(Buffer.buffer())
-            .blockingGet()
-            .statusCode();
-        MatcherAssert.assertThat(
-            code,
-            new IsEqual<>(Integer.parseInt(RsStatus.NOT_IMPLEMENTED.code()))
-        );
-        web.close();
-        server.close();
-        vertx.close();
+    /**
+     * The storage.
+     */
+    private final Storage storage;
+
+    /**
+     * Ctor.
+     * @param storage The storage.
+     */
+    IndexYaml(final Storage storage) {
+        this.storage = storage;
     }
 
+    /**
+     * Update the index file.
+     * @param arch New archive in a repo for which metadata is missing.
+     * @return The operation result
+     */
+    public Completable update(final TgzArchive arch) {
+        // @todo #8:30min Update Index file operation
+        //  For now this method is not implemented. Index.yml file should be created if not existed
+        //  before and update should be performed afterwards.
+        return Completable.error(new IllegalStateException("Not implemented."));
+    }
 }
