@@ -80,13 +80,14 @@ final class TgzArchive {
      */
     public Single<Key> save(final Storage storage) {
         final int eightkb = 8 * 1024;
-        final int last = this.content.length % eightkb == 0 ? 0 : 1;
+        final int resid = this.content.length % eightkb;
+        final int last = resid == 0 ? 0 : 1;
         final int chunks = this.content.length / eightkb + last;
         final ArrayList<ByteBuffer> arr = new ArrayList<>(chunks);
         for (int idx = 0; idx < chunks; idx += 1) {
             final byte[] bytes;
             if (idx == chunks - 1 && last == 1) {
-                bytes = new byte[this.content.length % eightkb];
+                bytes = new byte[resid];
             } else {
                 bytes = new byte[eightkb];
             }
