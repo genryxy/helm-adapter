@@ -54,6 +54,18 @@ SOFTWARE.
     <url>https://github.com/artipie/helm-adapter/tree/master</url>
   </scm>
   <dependencies>
+    <!-- Archives operations -->
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-compress</artifactId>
+      <version>1.20</version>
+    </dependency>
+    <!-- Yaml parsing -->
+    <dependency>
+      <groupId>org.yaml</groupId>
+      <artifactId>snakeyaml</artifactId>
+      <version>1.26</version>
+    </dependency>
     <dependency>
       <groupId>com.artipie</groupId>
       <artifactId>asto</artifactId>
@@ -108,5 +120,26 @@ SOFTWARE.
     </plugins>
   </build>
   <profiles>
+    <profile>
+      <id>qulice</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>com.qulice</groupId>
+            <artifactId>qulice-maven-plugin</artifactId>
+            <version>0.18.19</version>
+            <configuration>
+              <excludes combine.children="append">
+                <exclude>findbugs:.*</exclude>
+                <exclude>duplicatefinder:.*</exclude>
+                <exclude>xml:/src/it/settings.xml</exclude>
+                <exclude>dependencies:.*</exclude>
+                <exclude>checkstyle:.*/src/test/resources/.*</exclude>
+              </excludes>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
   </profiles>
 </project>

@@ -26,6 +26,14 @@ package com.artipie.helm;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import io.reactivex.Single;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Map;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.yaml.snakeyaml.Yaml;
 
 /**
  * A .tgz archive file.
@@ -35,12 +43,11 @@ import io.reactivex.Single;
  * @checkstyle MethodBodyCommentsCheck (500 lines)
  * @checkstyle NonStaticMethodCheck (500 lines)
  */
-@SuppressWarnings({"PMD.UnusedFormalParameter",
-    "PMD.UnusedPrivateField",
+@SuppressWarnings({
     "PMD.ArrayIsStoredDirectly",
-    "PMD.UnusedFormalParameter",
-    "PMD.AvoidDuplicateLiterals",
-    "PMD.SingularField"})
+    "PMD.AvoidBranchingStatementAsLastInLoop",
+    "PMD.AssignmentInOperand"
+})
 final class TgzArchive {
 
     /**
@@ -61,10 +68,22 @@ final class TgzArchive {
      * @return How the archive should be named on the file system
      */
     public String name() {
-        // @todo #12:30min TgzArchive name method
-        //  For now this method is not implemented. We should decompress the archive, find the chart
-        //  version and name, and, return it, binded together.
-        throw new IllegalStateException("Not Implemented");
+        try {
+            final TarArchiveInputStream taris = new TarArchiveInputStream(
+                new GzipCompressorInputStream(new ByteArrayInputStream(this.content))
+            );
+            TarArchiveEntry entry;
+            while ((entry = taris.getNextTarEntry()) != null) {
+                if (!entry.getName().endsWith("Chart.yaml")) {
+                    continue;
+                }
+                final Map<String, Object> load = new Yaml().load(taris);
+                return String.format("%s-%s.tgz", load.get("name"), load.get("version"));
+            }
+            throw new IllegalStateException("Chart.yaml wasn't found file");
+        } catch (final IOException exc) {
+            throw new UncheckedIOException(exc);
+        }
     }
 
     /**
