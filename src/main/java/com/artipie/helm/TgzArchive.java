@@ -26,10 +26,12 @@ package com.artipie.helm;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import io.reactivex.Single;
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
-import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
@@ -42,6 +44,7 @@ import org.yaml.snakeyaml.Yaml;
  * @since 0.2
  * @checkstyle MethodBodyCommentsCheck (500 lines)
  * @checkstyle NonStaticMethodCheck (500 lines)
+ * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
 @SuppressWarnings({
     "PMD.ArrayIsStoredDirectly",
@@ -68,18 +71,38 @@ final class TgzArchive {
      * @return How the archive should be named on the file system
      */
     public String name() {
+        final ChartYaml chart = this.chartYaml();
+        return String.format("%s-%s.tgz", chart.field("name"), chart.field("version"));
+    }
+
+    /**
+     * Find a Chart.yaml file inside.
+     * @return The Chart.yaml file.
+     */
+    public ChartYaml chartYaml() {
+        return new ChartYaml(new Yaml().load(this.file("Chart.yaml")));
+    }
+
+    /**
+     * Obtain file by name.
+     *
+     * @param name The name of a file.
+     * @return The file content.
+     */
+    public String file(final String name) {
         try {
             final TarArchiveInputStream taris = new TarArchiveInputStream(
                 new GzipCompressorInputStream(new ByteArrayInputStream(this.content))
             );
             TarArchiveEntry entry;
             while ((entry = taris.getNextTarEntry()) != null) {
-                if (entry.getName().endsWith("Chart.yaml")) {
-                    final Map<String, Object> load = new Yaml().load(taris);
-                    return String.format("%s-%s.tgz", load.get("name"), load.get("version"));
+                if (entry.getName().endsWith(name)) {
+                    return new BufferedReader(new InputStreamReader(taris))
+                        .lines()
+                        .collect(Collectors.joining("\n"));
                 }
             }
-            throw new IllegalStateException("Chart.yaml wasn't found file");
+            throw new IllegalStateException(String.format("%s wasn't found file", name));
         } catch (final IOException exc) {
             throw new UncheckedIOException(exc);
         }
@@ -96,5 +119,4 @@ final class TgzArchive {
         //  obtained from TgzArchive#name().
         return Single.error(new IllegalStateException("Not Implemented"));
     }
-
 }
