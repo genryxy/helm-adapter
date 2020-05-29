@@ -36,10 +36,12 @@ import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.reactivestreams.Subscriber;
 
 /**
  * A .tgz archive file.
@@ -56,7 +58,7 @@ import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
     "PMD.AvoidBranchingStatementAsLastInLoop",
     "PMD.AssignmentInOperand"
 })
-final class TgzArchive {
+final class TgzArchive implements Content {
 
     /**
      * The archive content.
@@ -119,6 +121,19 @@ final class TgzArchive {
      * @return Asto location, where archive is save.
      */
     public Single<Key> save(final Storage storage) {
+        final Key.From key = new Key.From(this.name());
+        return new RxStorageWrapper(storage)
+            .save(key, new Content.From(this))
+            .andThen(Single.just(key));
+    }
+
+    @Override
+    public Optional<Long> size() {
+        return Optional.of(this.content.length).map(Integer::longValue);
+    }
+
+    @Override
+    public void subscribe(final Subscriber<? super ByteBuffer> subscriber) {
         final int eightkb = 8 * 1024;
         final int resid = this.content.length % eightkb;
         final int last = resid == 0 ? 0 : 1;
@@ -134,9 +149,6 @@ final class TgzArchive {
             System.arraycopy(this.content, idx * eightkb, bytes, 0, bytes.length);
             arr.add(ByteBuffer.wrap(bytes));
         }
-        final Key.From key = new Key.From(this.name());
-        return new RxStorageWrapper(storage)
-            .save(key, new Content.From(Flowable.fromIterable(arr)))
-            .andThen(Single.just(key));
+        Flowable.fromIterable(arr).subscribe(subscriber);
     }
 }
