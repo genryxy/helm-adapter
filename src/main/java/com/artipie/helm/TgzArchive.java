@@ -35,7 +35,6 @@ import java.util.stream.Collectors;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
-import org.yaml.snakeyaml.Yaml;
 
 /**
  * A .tgz archive file.
@@ -80,7 +79,7 @@ final class TgzArchive {
      * @return The Chart.yaml file.
      */
     public ChartYaml chartYaml() {
-        return new ChartYaml(new Yaml().load(this.file("Chart.yaml")));
+        return new ChartYaml(this.file("Chart.yaml"));
     }
 
     /**

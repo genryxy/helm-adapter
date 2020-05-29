@@ -23,7 +23,9 @@
  */
 package com.artipie.helm;
 
+import io.reactivex.Single;
 import java.util.Map;
+import org.yaml.snakeyaml.Yaml;
 
 /**
  * The Chart.yaml file.
@@ -35,14 +37,14 @@ public class ChartYaml {
     /**
      * The Yaml.
      */
-    private final Map<String, Object> yaml;
+    private final Single<Map<String, Object>> yaml;
 
     /**
      * Ctor.
      * @param yaml The yaml.
      */
-    public ChartYaml(final Map<String, Object> yaml) {
-        this.yaml = yaml;
+    public ChartYaml(final String yaml) {
+        this.yaml = Single.<Map<String, Object>>defer(() -> new Yaml().load(yaml)).cache();
     }
 
     /**
@@ -51,6 +53,6 @@ public class ChartYaml {
      * @return A field the Yaml file.
      */
     public Object field(final String name) {
-        return this.yaml.get(name);
+        return this.yaml.blockingGet().get(name);
     }
 }
