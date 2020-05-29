@@ -102,7 +102,7 @@ final class TgzArchive {
                         .collect(Collectors.joining("\n"));
                 }
             }
-            throw new IllegalStateException(String.format("%s wasn't found file", name));
+            throw new IllegalStateException(String.format("'%s' file wasn't found", name));
         } catch (final IOException exc) {
             throw new UncheckedIOException(exc);
         }
