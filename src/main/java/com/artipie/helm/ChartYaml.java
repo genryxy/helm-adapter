@@ -44,7 +44,7 @@ public class ChartYaml {
      * @param yaml The yaml.
      */
     public ChartYaml(final String yaml) {
-        this.yaml = Single.<Map<String, Object>>defer(() -> new Yaml().load(yaml)).cache();
+        this.yaml = Single.<Map<String, Object>>fromCallable(() -> new Yaml().load(yaml)).cache();
     }
 
     /**
