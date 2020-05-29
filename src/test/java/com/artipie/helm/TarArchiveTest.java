@@ -23,36 +23,29 @@
  */
 package com.artipie.helm;
 
-import io.reactivex.Single;
-import java.util.Map;
-import org.yaml.snakeyaml.Yaml;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import org.hamcrest.MatcherAssert;
+import org.hamcrest.core.IsEqual;
+import org.junit.jupiter.api.Test;
 
 /**
- * The Chart.yaml file.
+ * A test for {@link TgzArchive}.
  *
  * @since 0.2
  */
-public class ChartYaml {
+public class TarArchiveTest {
 
-    /**
-     * The Yaml.
-     */
-    private final Single<Map<String, Object>> yaml;
-
-    /**
-     * Ctor.
-     * @param yaml The yaml.
-     */
-    public ChartYaml(final String yaml) {
-        this.yaml = Single.<Map<String, Object>>fromCallable(() -> new Yaml().load(yaml)).cache();
-    }
-
-    /**
-     * Obtain a field by name.
-     * @param name The name of field to read.
-     * @return A field the Yaml file.
-     */
-    public Object field(final String name) {
-        return this.yaml.blockingGet().get(name);
+    @Test
+    public void nameIdentifiedCorrectly() throws IOException {
+        MatcherAssert.assertThat(
+            new TgzArchive(
+                Files.readAllBytes(
+                    Paths.get("./src/test/resources/tomcat-0.4.1.tgz")
+                )
+            ).name(),
+            new IsEqual<>("tomcat-0.4.1.tgz")
+        );
     }
 }
