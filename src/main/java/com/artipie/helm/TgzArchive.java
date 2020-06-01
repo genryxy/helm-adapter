@@ -139,22 +139,18 @@ final class TgzArchive implements Content {
 
     @Override
     public void subscribe(final Subscriber<? super ByteBuffer> subscriber) {
-        // @todo #21:30min Reimplement with slices
-        //  Instead of copying parts of content into small chunks we can use the big ByteBuffer
-        //  for referencing to a particular part which would improve memory footprint.
         final int resid = this.content.length % TgzArchive.EIGHT_KB;
         final int last = resid == 0 ? 0 : 1;
         final int chunks = this.content.length / TgzArchive.EIGHT_KB + last;
         final ArrayList<ByteBuffer> arr = new ArrayList<>(chunks);
         for (int idx = 0; idx < chunks; idx += 1) {
-            final byte[] bytes;
+            final int len;
             if (idx == chunks - 1 && last == 1) {
-                bytes = new byte[resid];
+                len = resid;
             } else {
-                bytes = new byte[TgzArchive.EIGHT_KB];
+                len = TgzArchive.EIGHT_KB;
             }
-            System.arraycopy(this.content, idx * TgzArchive.EIGHT_KB, bytes, 0, bytes.length);
-            arr.add(ByteBuffer.wrap(bytes));
+            arr.add(ByteBuffer.wrap(this.content, idx * TgzArchive.EIGHT_KB, len));
         }
         Flowable.fromIterable(arr).subscribe(subscriber);
     }
