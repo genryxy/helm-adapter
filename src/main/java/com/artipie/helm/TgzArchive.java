@@ -61,6 +61,11 @@ import org.reactivestreams.Subscriber;
 final class TgzArchive implements Content {
 
     /**
+     * The eight kb.
+     */
+    private static final int EIGHT_KB = 8 * 1024;
+
+    /**
      * The archive content.
      */
     private final byte[] content;
@@ -123,7 +128,7 @@ final class TgzArchive implements Content {
     public Single<Key> save(final Storage storage) {
         final Key.From key = new Key.From(this.name());
         return new RxStorageWrapper(storage)
-            .save(key, new Content.From(this))
+            .save(key, this)
             .andThen(Single.just(key));
     }
 
@@ -134,19 +139,18 @@ final class TgzArchive implements Content {
 
     @Override
     public void subscribe(final Subscriber<? super ByteBuffer> subscriber) {
-        final int eightkb = 8 * 1024;
-        final int resid = this.content.length % eightkb;
+        final int resid = this.content.length % TgzArchive.EIGHT_KB;
         final int last = resid == 0 ? 0 : 1;
-        final int chunks = this.content.length / eightkb + last;
+        final int chunks = this.content.length / TgzArchive.EIGHT_KB + last;
         final ArrayList<ByteBuffer> arr = new ArrayList<>(chunks);
         for (int idx = 0; idx < chunks; idx += 1) {
             final byte[] bytes;
             if (idx == chunks - 1 && last == 1) {
                 bytes = new byte[resid];
             } else {
-                bytes = new byte[eightkb];
+                bytes = new byte[TgzArchive.EIGHT_KB];
             }
-            System.arraycopy(this.content, idx * eightkb, bytes, 0, bytes.length);
+            System.arraycopy(this.content, idx * TgzArchive.EIGHT_KB, bytes, 0, bytes.length);
             arr.add(ByteBuffer.wrap(bytes));
         }
         Flowable.fromIterable(arr).subscribe(subscriber);
