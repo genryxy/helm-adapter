@@ -23,18 +23,25 @@
  */
 package com.artipie.helm;
 
+import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
+import com.artipie.asto.rx.RxStorageWrapper;
+import io.reactivex.Flowable;
 import io.reactivex.Single;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.reactivestreams.Subscriber;
 
 /**
  * A .tgz archive file.
@@ -43,6 +50,7 @@ import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
  * @since 0.2
  * @checkstyle MethodBodyCommentsCheck (500 lines)
  * @checkstyle NonStaticMethodCheck (500 lines)
+ * @checkstyle AvoidInlineConditionalsCheck (500 lines)
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
 @SuppressWarnings({
@@ -50,7 +58,12 @@ import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
     "PMD.AvoidBranchingStatementAsLastInLoop",
     "PMD.AssignmentInOperand"
 })
-final class TgzArchive {
+final class TgzArchive implements Content {
+
+    /**
+     * The eight kb.
+     */
+    private static final int EIGHT_KB = 8 * 1024;
 
     /**
      * The archive content.
@@ -113,9 +126,36 @@ final class TgzArchive {
      * @return Asto location, where archive is save.
      */
     public Single<Key> save(final Storage storage) {
-        // @todo #12:30min Save the archive into Asto.
-        //  For now this method is not implemented. The archive should be saved with a key name,
-        //  obtained from TgzArchive#name().
-        return Single.error(new IllegalStateException("Not Implemented"));
+        final Key.From key = new Key.From(this.name());
+        return new RxStorageWrapper(storage)
+            .save(key, this)
+            .andThen(Single.just(key));
+    }
+
+    @Override
+    public Optional<Long> size() {
+        return Optional.of(this.content.length).map(Integer::longValue);
+    }
+
+    @Override
+    public void subscribe(final Subscriber<? super ByteBuffer> subscriber) {
+        // @todo #21:30min Reimplement with slices
+        //  Instead of copying parts of content into small chunks we can use the big ByteBuffer
+        //  for referencing to a particular part which would improve memory footprint.
+        final int resid = this.content.length % TgzArchive.EIGHT_KB;
+        final int last = resid == 0 ? 0 : 1;
+        final int chunks = this.content.length / TgzArchive.EIGHT_KB + last;
+        final ArrayList<ByteBuffer> arr = new ArrayList<>(chunks);
+        for (int idx = 0; idx < chunks; idx += 1) {
+            final byte[] bytes;
+            if (idx == chunks - 1 && last == 1) {
+                bytes = new byte[resid];
+            } else {
+                bytes = new byte[TgzArchive.EIGHT_KB];
+            }
+            System.arraycopy(this.content, idx * TgzArchive.EIGHT_KB, bytes, 0, bytes.length);
+            arr.add(ByteBuffer.wrap(bytes));
+        }
+        Flowable.fromIterable(arr).subscribe(subscriber);
     }
 }
