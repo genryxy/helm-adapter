@@ -139,6 +139,9 @@ final class TgzArchive implements Content {
 
     @Override
     public void subscribe(final Subscriber<? super ByteBuffer> subscriber) {
+        // @todo #21:30min Reimplement with slices
+        //  Instead of copying parts of content into small chunks we can use the big ByteBuffer
+        //  for referencing to a particular part which would improve memory footprint.
         final int resid = this.content.length % TgzArchive.EIGHT_KB;
         final int last = resid == 0 ? 0 : 1;
         final int chunks = this.content.length / TgzArchive.EIGHT_KB + last;
