@@ -67,11 +67,11 @@ public class TarArchiveTest {
         MatcherAssert.assertThat(
             Files.readAllBytes(
                 Paths.get(tmp.toAbsolutePath().toString(), "tomcat-0.4.1.tgz")
-            ).length,
+            ),
             new IsEqual<>(
                 Files.readAllBytes(
                     Paths.get("./src/test/resources/tomcat-0.4.1.tgz")
-                ).length
+                )
             )
         );
         vertx.close();
