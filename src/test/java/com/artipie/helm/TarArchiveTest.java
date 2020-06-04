@@ -58,6 +58,9 @@ public class TarArchiveTest {
     @Test
     public void savedCorrectly(@TempDir final Path tmp) throws IOException {
         final Vertx vertx = Vertx.vertx();
+        // @todo #19:30min Replace FileStorage with InMemory one
+        //  Currently FileStorage is used in this test, but we need to refactor it to use InMemory
+        //  storage.
         final Storage storage = new FileStorage(tmp, vertx.fileSystem());
         new TgzArchive(
             Files.readAllBytes(
