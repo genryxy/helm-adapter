@@ -39,6 +39,7 @@ import org.junit.jupiter.api.io.TempDir;
  * A test for {@link TgzArchive}.
  *
  * @since 0.2
+ * @checkstyle MethodBodyCommentsCheck (500 lines)
  */
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
 public class TarArchiveTest {
