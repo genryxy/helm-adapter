@@ -32,9 +32,9 @@ import com.artipie.asto.rx.RxStorage;
 import com.artipie.asto.rx.RxStorageWrapper;
 import io.reactivex.Completable;
 import io.reactivex.Single;
-import org.yaml.snakeyaml.Yaml;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import org.yaml.snakeyaml.Yaml;
 
 /**
  * Index.yaml file. The main file in a chart repo.
@@ -54,7 +54,7 @@ final class IndexYaml {
     /**
      * The index.yalm string.
      */
-    private final static Key INDEX_YAML = new Key.From("index.yaml");
+    private static final Key INDEX_YAML = new Key.From("index.yaml");
 
     /**
      * The storage.
@@ -75,24 +75,31 @@ final class IndexYaml {
      * @return The operation result
      */
     public Completable update(final TgzArchive arch) {
-        return storage.exists(IndexYaml.INDEX_YAML)
-            .flatMap(exist -> {
-                if (exist) {
-                    return storage.value(IndexYaml.INDEX_YAML)
-                        .flatMap(content -> new Concatenation(content).single())
-                        .map(buf -> new String(new Remaining(buf).bytes()))
-                        .map(content -> new Yaml().load(content));
-                } else {
-                    return Single.just(IndexYaml.empty());
-                }
-            }).map(idx -> {
-                IndexYaml.update(idx, arch.chartYaml());
-                return idx;
-            }).flatMapCompletable(idx ->
-                storage.save(
-                    IndexYaml.INDEX_YAML,
-                    new Content.From(new Yaml().dump(idx).getBytes(StandardCharsets.UTF_8))
-                )
+        return this.storage.exists(IndexYaml.INDEX_YAML)
+            .flatMap(
+                exist -> {
+                    final Single<Map<String, Object>> result;
+                    if (exist) {
+                        result = this.storage.value(IndexYaml.INDEX_YAML)
+                            .flatMap(content -> new Concatenation(content).single())
+                            .map(buf -> new String(new Remaining(buf).bytes()))
+                            .map(content -> new Yaml().load(content));
+                    } else {
+                        result = Single.just(IndexYaml.empty());
+                    }
+                    return result;
+                })
+            .map(
+                idx -> {
+                    IndexYaml.update(idx, arch.chartYaml());
+                    return idx;
+                })
+            .flatMapCompletable(
+                idx ->
+                    this.storage.save(
+                        IndexYaml.INDEX_YAML,
+                        new Content.From(new Yaml().dump(idx).getBytes(StandardCharsets.UTF_8))
+                    )
             );
     }
 
@@ -106,12 +113,13 @@ final class IndexYaml {
         //  an empty index.yaml file
         throw new IllegalStateException("Not implemented");
     }
+
     /**
      * Perform an update.
      * @param index The index yaml mappings.
      * @param chart The ChartYaml.
      */
-    private static void update(final Map<String, Object> index, ChartYaml chart) {
+    private static void update(final Map<String, Object> index, final ChartYaml chart) {
         // @todo #89:30min Implement IndexYaml#empty
         //  For now this method is not implemented. This method should update index mappings by
         //  scanning a given chart yaml file
