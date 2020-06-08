@@ -59,14 +59,14 @@ final class IndexYaml {
     /**
      * The storage.
      */
-    private final RxStorage storage;
+    private final Storage storage;
 
     /**
      * Ctor.
      * @param storage The storage.
      */
     IndexYaml(final Storage storage) {
-        this.storage = new RxStorageWrapper(storage);
+        this.storage = storage;
     }
 
     /**
@@ -75,12 +75,13 @@ final class IndexYaml {
      * @return The operation result
      */
     public Completable update(final TgzArchive arch) {
-        return this.storage.exists(IndexYaml.INDEX_YAML)
+        final RxStorage rxs = new RxStorageWrapper(this.storage);
+        return rxs.exists(IndexYaml.INDEX_YAML)
             .flatMap(
                 exist -> {
                     final Single<Map<String, Object>> result;
                     if (exist) {
-                        result = this.storage.value(IndexYaml.INDEX_YAML)
+                        result = rxs.value(IndexYaml.INDEX_YAML)
                             .flatMap(content -> new Concatenation(content).single())
                             .map(buf -> new String(new Remaining(buf).bytes()))
                             .map(content -> new Yaml().load(content));
@@ -96,7 +97,7 @@ final class IndexYaml {
                 })
             .flatMapCompletable(
                 idx ->
-                    this.storage.save(
+                    rxs.save(
                         IndexYaml.INDEX_YAML,
                         new Content.From(new Yaml().dump(idx).getBytes(StandardCharsets.UTF_8))
                     )
