@@ -23,18 +23,25 @@
  */
 package com.artipie.helm;
 
+import com.artipie.asto.Storage;
+import com.artipie.asto.fs.FileStorage;
+import io.vertx.reactivex.core.Vertx;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsEqual;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * A test for {@link TgzArchive}.
  *
  * @since 0.2
+ * @checkstyle MethodBodyCommentsCheck (500 lines)
  */
+@SuppressWarnings("PMD.AvoidDuplicateLiterals")
 public class TarArchiveTest {
 
     @Test
@@ -47,5 +54,30 @@ public class TarArchiveTest {
             ).name(),
             new IsEqual<>("tomcat-0.4.1.tgz")
         );
+    }
+
+    @Test
+    public void savedCorrectly(@TempDir final Path tmp) throws IOException {
+        final Vertx vertx = Vertx.vertx();
+        // @todo #19:30min Replace FileStorage with InMemory one
+        //  Currently FileStorage is used in this test, but we need to refactor it to use InMemory
+        //  storage.
+        final Storage storage = new FileStorage(tmp, vertx.fileSystem());
+        new TgzArchive(
+            Files.readAllBytes(
+                Paths.get("./src/test/resources/tomcat-0.4.1.tgz")
+            )
+        ).save(storage).blockingGet();
+        MatcherAssert.assertThat(
+            Files.readAllBytes(
+                Paths.get(tmp.toAbsolutePath().toString(), "tomcat-0.4.1.tgz")
+            ),
+            new IsEqual<>(
+                Files.readAllBytes(
+                    Paths.get("./src/test/resources/tomcat-0.4.1.tgz")
+                )
+            )
+        );
+        vertx.close();
     }
 }
