@@ -42,6 +42,9 @@ import org.yaml.snakeyaml.Yaml;
 /**
  * Index.yaml file. The main file in a chart repo.
  *
+ * @todo #1:30min Ensure that generation work
+ *  In order to check the file generation works fine, we need to create a test, which will install
+ *  pushed before chart and ensure successful installation.
  * @since 0.2
  * @checkstyle MethodBodyCommentsCheck (500 lines)
  * @checkstyle NonStaticMethodCheck (500 lines)
