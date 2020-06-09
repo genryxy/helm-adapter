@@ -23,8 +23,18 @@
  */
 package com.artipie.helm;
 
+import com.artipie.asto.Concatenation;
+import com.artipie.asto.Content;
+import com.artipie.asto.Key;
+import com.artipie.asto.Remaining;
 import com.artipie.asto.Storage;
+import com.artipie.asto.rx.RxStorage;
+import com.artipie.asto.rx.RxStorageWrapper;
 import io.reactivex.Completable;
+import io.reactivex.Single;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import org.yaml.snakeyaml.Yaml;
 
 /**
  * Index.yaml file. The main file in a chart repo.
@@ -40,6 +50,11 @@ import io.reactivex.Completable;
     "PMD.AvoidDuplicateLiterals",
     "PMD.SingularField"})
 final class IndexYaml {
+
+    /**
+     * The index.yalm string.
+     */
+    private static final Key INDEX_YAML = new Key.From("index.yaml");
 
     /**
      * The storage.
@@ -60,9 +75,56 @@ final class IndexYaml {
      * @return The operation result
      */
     public Completable update(final TgzArchive arch) {
-        // @todo #8:30min Update Index file operation
-        //  For now this method is not implemented. Index.yml file should be created if not existed
-        //  before and update should be performed afterwards.
-        return Completable.error(new IllegalStateException("Not implemented."));
+        final RxStorage rxs = new RxStorageWrapper(this.storage);
+        return rxs.exists(IndexYaml.INDEX_YAML)
+            .flatMap(
+                exist -> {
+                    final Single<Map<String, Object>> result;
+                    if (exist) {
+                        result = rxs.value(IndexYaml.INDEX_YAML)
+                            .flatMap(content -> new Concatenation(content).single())
+                            .map(buf -> new String(new Remaining(buf).bytes()))
+                            .map(content -> new Yaml().load(content));
+                    } else {
+                        result = Single.just(IndexYaml.empty());
+                    }
+                    return result;
+                })
+            .map(
+                idx -> {
+                    IndexYaml.update(idx, arch.chartYaml());
+                    return idx;
+                })
+            .flatMapCompletable(
+                idx ->
+                    rxs.save(
+                        IndexYaml.INDEX_YAML,
+                        new Content.From(new Yaml().dump(idx).getBytes(StandardCharsets.UTF_8))
+                    )
+            );
+    }
+
+    /**
+     * Return an empty Index mappings.
+     * @return The empty yaml mappings.
+     */
+    private static Map<String, Object> empty() {
+        // @todo #89:30min Implement IndexYaml#empty
+        //  For now this method is not implemented. This method should return mappings related to
+        //  an empty index.yaml file and does not include any chart related information
+        throw new IllegalStateException("Not implemented");
+    }
+
+    /**
+     * Perform an update.
+     * @param index The index yaml mappings.
+     * @param chart The ChartYaml.
+     */
+    private static void update(final Map<String, Object> index, final ChartYaml chart) {
+        // @todo #89:30min Implement IndexYaml#empty
+        //  This method should update index mappings by scanning a given chart yaml file.
+        //  Read the official docs https://helm.sh/docs/topics/chart_repository/ for more
+        //  details
+        throw new IllegalStateException("Not implemented");
     }
 }
