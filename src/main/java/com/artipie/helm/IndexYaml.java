@@ -122,8 +122,9 @@ final class IndexYaml {
      */
     private static void update(final Map<String, Object> index, final ChartYaml chart) {
         // @todo #89:30min Implement IndexYaml#empty
-        //  For now this method is not implemented. This method should update index mappings by
-        //  scanning a given chart yaml file
+        //  This method should update index mappings by scanning a given chart yaml file.
+        //  Read the official docs https://helm.sh/docs/topics/chart_repository/ for more
+        //  details
         throw new IllegalStateException("Not implemented");
     }
 }
