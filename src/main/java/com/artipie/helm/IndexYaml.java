@@ -111,7 +111,7 @@ final class IndexYaml {
     private static Map<String, Object> empty() {
         // @todo #89:30min Implement IndexYaml#empty
         //  For now this method is not implemented. This method should return mappings related to
-        //  an empty index.yaml file
+        //  an empty index.yaml file and does not include any chart related information
         throw new IllegalStateException("Not implemented");
     }
 
