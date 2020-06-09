@@ -33,6 +33,9 @@ import com.artipie.asto.rx.RxStorageWrapper;
 import io.reactivex.Completable;
 import io.reactivex.Single;
 import java.nio.charset.StandardCharsets;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.Map;
 import org.yaml.snakeyaml.Yaml;
 
@@ -55,6 +58,12 @@ final class IndexYaml {
      * The index.yalm string.
      */
     private static final Key INDEX_YAML = new Key.From("index.yaml");
+
+    /**
+     * An example of time this formatter produces: 2016-10-06T16:23:20.499814565-06:00 .
+     */
+    private static final DateTimeFormatter TIME_FORMATTER =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.nnnnnnnnnZZZZZ");
 
     /**
      * The storage.
@@ -109,10 +118,11 @@ final class IndexYaml {
      * @return The empty yaml mappings.
      */
     private static Map<String, Object> empty() {
-        // @todo #89:30min Implement IndexYaml#empty
-        //  For now this method is not implemented. This method should return mappings related to
-        //  an empty index.yaml file and does not include any chart related information
-        throw new IllegalStateException("Not implemented");
+        final Map<String, Object> res = new HashMap<>(3);
+        res.put("apiVersion", "v1");
+        res.put("entries", new HashMap<String, Object>(0));
+        res.put("generated", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER));
+        return res;
     }
 
     /**
