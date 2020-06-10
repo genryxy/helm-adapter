@@ -42,7 +42,7 @@ import org.junit.jupiter.api.io.TempDir;
  * @checkstyle MethodBodyCommentsCheck (500 lines)
  */
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
-public class TarArchiveTest {
+public final class TgzArchiveTest {
 
     @Test
     public void nameIdentifiedCorrectly() throws IOException {
@@ -53,6 +53,19 @@ public class TarArchiveTest {
                 )
             ).name(),
             new IsEqual<>("tomcat-0.4.1.tgz")
+        );
+    }
+
+    @Test
+    public void sizeHasCorrectValue() throws IOException {
+        final Path file = Paths.get("./src/test/resources/tomcat-0.4.1.tgz");
+        MatcherAssert.assertThat(
+            new TgzArchive(
+                Files.readAllBytes(
+                    file
+                )
+            ).size().get(),
+            new IsEqual<>(Files.size(file))
         );
     }
 
