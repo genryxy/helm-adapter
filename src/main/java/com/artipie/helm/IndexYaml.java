@@ -76,11 +76,18 @@ final class IndexYaml {
     private final Storage storage;
 
     /**
+     * The base path for urls field.
+     */
+    private final String base;
+
+    /**
      * Ctor.
      * @param storage The storage.
+     * @param base The base path for urls field.
      */
-    IndexYaml(final Storage storage) {
+    IndexYaml(final Storage storage, final String base) {
         this.storage = storage;
+        this.base = base;
     }
 
     /**
@@ -106,7 +113,7 @@ final class IndexYaml {
                 })
             .map(
                 idx -> {
-                    IndexYaml.update(idx, arch.chartYaml());
+                    this.update(idx, arch);
                     return idx;
                 })
             .flatMapCompletable(
@@ -132,9 +139,10 @@ final class IndexYaml {
     /**
      * Perform an update.
      * @param index The index yaml mappings.
-     * @param chart The ChartYaml.
+     * @param tgz The archive.
      */
-    private static void update(final Map<String, Object> index, final ChartYaml chart) {
+    private void update(final Map<String, Object> index, final TgzArchive tgz) {
+        final ChartYaml chart = tgz.chartYaml();
         final String version = "version";
         final Map<String, Object> entries = (Map<String, Object>) index.get("entries");
         final ArrayList<Map<String, Object>> versions = (ArrayList<Map<String, Object>>)
@@ -142,12 +150,12 @@ final class IndexYaml {
         if (versions.stream().noneMatch(map -> map.get(version).equals(chart.field(version)))) {
             final Map<String, Object> newver = new HashMap<>();
             newver.put("created", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER));
+            final ArrayList<String> urls = new ArrayList<>(1);
+            urls.add(String.format("%s%s", this.base, tgz.name()));
+            newver.put("urls", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER));
             newver.putAll(chart.fields());
             // @todo #32:30min Digest field
             //  One of the fields Index.yaml require is "digest" field. This field should also be
-            //  generated.
-            // @todo #32:30min Urls field
-            //  One of the fields Index.yaml require is "urls" field. This field should also be
             //  generated.
             versions.add(newver);
         }
