@@ -33,6 +33,7 @@ import com.artipie.asto.rx.RxStorageWrapper;
 import io.reactivex.Completable;
 import io.reactivex.Single;
 import java.nio.charset.StandardCharsets;
+import java.security.NoSuchAlgorithmException;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -106,7 +107,7 @@ final class IndexYaml {
                 })
             .map(
                 idx -> {
-                    IndexYaml.update(idx, arch.chartYaml());
+                    IndexYaml.update(idx, arch);
                     return idx;
                 })
             .flatMapCompletable(
@@ -132,9 +133,12 @@ final class IndexYaml {
     /**
      * Perform an update.
      * @param index The index yaml mappings.
-     * @param chart The ChartYaml.
+     * @param tgz The archive.
+     * @throws NoSuchAlgorithmException If fails.
      */
-    private static void update(final Map<String, Object> index, final ChartYaml chart) {
+    private static void update(final Map<String, Object> index, final TgzArchive tgz)
+        throws NoSuchAlgorithmException {
+        final ChartYaml chart = tgz.chartYaml();
         final String version = "version";
         final Map<String, Object> entries = (Map<String, Object>) index.get("entries");
         final ArrayList<Map<String, Object>> versions = (ArrayList<Map<String, Object>>)
@@ -142,10 +146,8 @@ final class IndexYaml {
         if (versions.stream().noneMatch(map -> map.get(version).equals(chart.field(version)))) {
             final Map<String, Object> newver = new HashMap<>();
             newver.put("created", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER));
+            newver.put("digest", tgz.digest());
             newver.putAll(chart.fields());
-            // @todo #32:30min Digest field
-            //  One of the fields Index.yaml require is "digest" field. This field should also be
-            //  generated.
             // @todo #32:30min Urls field
             //  One of the fields Index.yaml require is "urls" field. This field should also be
             //  generated.
