@@ -33,7 +33,6 @@ import com.artipie.asto.rx.RxStorageWrapper;
 import io.reactivex.Completable;
 import io.reactivex.Single;
 import java.nio.charset.StandardCharsets;
-import java.security.NoSuchAlgorithmException;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -51,7 +50,8 @@ import org.yaml.snakeyaml.Yaml;
  * @checkstyle MethodBodyCommentsCheck (500 lines)
  * @checkstyle NonStaticMethodCheck (500 lines)
  */
-@SuppressWarnings({"PMD.UnusedFormalParameter",
+@SuppressWarnings({"unchecked",
+    "PMD.UnusedFormalParameter",
     "PMD.UnusedPrivateField",
     "PMD.ArrayIsStoredDirectly",
     "PMD.UnusedFormalParameter",
@@ -134,13 +134,13 @@ final class IndexYaml {
      * @param index The index yaml mappings.
      * @param chart The ChartYaml.
      */
-    private static void update(final Map<String, Object> index, final ChartYaml chart) throws NoSuchAlgorithmException {
+    private static void update(final Map<String, Object> index, final ChartYaml chart) {
         final String version = "version";
         final Map<String, Object> entries = (Map<String, Object>) index.get("entries");
         final ArrayList<Map<String, Object>> versions = (ArrayList<Map<String, Object>>)
-            entries.getOrDefault(chart.field("name"), new ArrayList<Map<String, Object>>());
-        if (!versions.stream().anyMatch(map -> map.get(version).equals(chart.field(version)))) {
-            final HashMap<String, Object> newver = new HashMap<>();
+            entries.getOrDefault(chart.field("name"), new ArrayList<Map<String, Object>>(0));
+        if (versions.stream().noneMatch(map -> map.get(version).equals(chart.field(version)))) {
+            final Map<String, Object> newver = new HashMap<>();
             newver.put("created", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER));
             newver.putAll(chart.fields());
             // @todo #32:30min Digest field

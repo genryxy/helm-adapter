@@ -57,10 +57,10 @@ public class ChartYaml {
     }
 
     /**
-     * Return Chart.yaml fields
+     * Return Chart.yaml fields.
      * @return The fields.
      */
-    public Map<String, Object> fields(){
+    public Map<String, Object> fields() {
         return this.yaml.blockingGet();
     }
 }
