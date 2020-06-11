@@ -61,9 +61,7 @@ public final class TgzArchiveTest {
         final Path file = Paths.get("./src/test/resources/tomcat-0.4.1.tgz");
         MatcherAssert.assertThat(
             new TgzArchive(
-                Files.readAllBytes(
-                    file
-                )
+                Files.readAllBytes(file)
             ).size().get(),
             new IsEqual<>(Files.size(file))
         );
