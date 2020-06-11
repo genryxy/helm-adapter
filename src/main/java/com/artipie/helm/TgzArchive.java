@@ -45,8 +45,6 @@ import org.reactivestreams.Subscriber;
 
 /**
  * A .tgz archive file.
- * @todo #12:30min Test for TgzArchive
- *  For now this method is not implemented, but we definitely need a test for this class.
  * @since 0.2
  * @checkstyle MethodBodyCommentsCheck (500 lines)
  * @checkstyle NonStaticMethodCheck (500 lines)
@@ -96,31 +94,6 @@ final class TgzArchive implements Content {
     }
 
     /**
-     * Obtain file by name.
-     *
-     * @param name The name of a file.
-     * @return The file content.
-     */
-    public String file(final String name) {
-        try {
-            final TarArchiveInputStream taris = new TarArchiveInputStream(
-                new GzipCompressorInputStream(new ByteArrayInputStream(this.content))
-            );
-            TarArchiveEntry entry;
-            while ((entry = taris.getNextTarEntry()) != null) {
-                if (entry.getName().endsWith(name)) {
-                    return new BufferedReader(new InputStreamReader(taris))
-                        .lines()
-                        .collect(Collectors.joining("\n"));
-                }
-            }
-            throw new IllegalStateException(String.format("'%s' file wasn't found", name));
-        } catch (final IOException exc) {
-            throw new UncheckedIOException(exc);
-        }
-    }
-
-    /**
      * Save archive in an asto storage.
      * @param storage The storage to save archive on.
      * @return Asto location, where archive is save.
@@ -153,5 +126,30 @@ final class TgzArchive implements Content {
             arr.add(ByteBuffer.wrap(this.content, idx * TgzArchive.EIGHT_KB, len));
         }
         Flowable.fromIterable(arr).subscribe(subscriber);
+    }
+
+    /**
+     * Obtain file by name.
+     *
+     * @param name The name of a file.
+     * @return The file content.
+     */
+    private String file(final String name) {
+        try {
+            final TarArchiveInputStream taris = new TarArchiveInputStream(
+                new GzipCompressorInputStream(new ByteArrayInputStream(this.content))
+            );
+            TarArchiveEntry entry;
+            while ((entry = taris.getNextTarEntry()) != null) {
+                if (entry.getName().endsWith(name)) {
+                    return new BufferedReader(new InputStreamReader(taris))
+                        .lines()
+                        .collect(Collectors.joining("\n"));
+                }
+            }
+            throw new IllegalStateException(String.format("'%s' file wasn't found", name));
+        } catch (final IOException exc) {
+            throw new UncheckedIOException(exc);
+        }
     }
 }
