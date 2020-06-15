@@ -146,9 +146,15 @@ final class IndexYaml {
             // @todo #32:30min Digest field
             //  One of the fields Index.yaml require is "digest" field. This field should also be
             //  generated.
+            // @todo #32:30min Create a unit test for digest field
+            //  One of the fields Index.yaml require is "digest" field. The test should make verify
+            //  that field has been generated correctly.
             // @todo #32:30min Urls field
             //  One of the fields Index.yaml require is "urls" field. This field should also be
             //  generated.
+            // @todo #32:30min Create a unit test for urls field
+            //  One of the fields Index.yaml require is "urls" field. The test should make verify
+            //  that field has been generated correctly.
             versions.add(newver);
         }
     }
