@@ -50,8 +50,7 @@ import org.yaml.snakeyaml.Yaml;
  * @checkstyle MethodBodyCommentsCheck (500 lines)
  * @checkstyle NonStaticMethodCheck (500 lines)
  */
-@SuppressWarnings({"unchecked",
-    "PMD.UnusedFormalParameter",
+@SuppressWarnings({"PMD.UnusedFormalParameter",
     "PMD.UnusedPrivateField",
     "PMD.ArrayIsStoredDirectly",
     "PMD.UnusedFormalParameter",
@@ -141,6 +140,7 @@ final class IndexYaml {
      * @param index The index yaml mappings.
      * @param tgz The archive.
      */
+    @SuppressWarnings("unchecked")
     private void update(final Map<String, Object> index, final TgzArchive tgz) {
         final ChartYaml chart = tgz.chartYaml();
         final String version = "version";
@@ -157,6 +157,12 @@ final class IndexYaml {
             // @todo #32:30min Digest field
             //  One of the fields Index.yaml require is "digest" field. This field should also be
             //  generated.
+            // @todo #32:30min Create a unit test for digest field
+            //  One of the fields Index.yaml require is "digest" field. The test should make verify
+            //  that field has been generated correctly.
+            // @todo #32:30min Create a unit test for urls field
+            //  One of the fields Index.yaml require is "urls" field. The test should make verify
+            //  that field has been generated correctly.
             versions.add(newver);
         }
     }
