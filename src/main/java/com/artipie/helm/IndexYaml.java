@@ -50,8 +50,7 @@ import org.yaml.snakeyaml.Yaml;
  * @checkstyle MethodBodyCommentsCheck (500 lines)
  * @checkstyle NonStaticMethodCheck (500 lines)
  */
-@SuppressWarnings({"unchecked",
-    "PMD.UnusedFormalParameter",
+@SuppressWarnings({"PMD.UnusedFormalParameter",
     "PMD.UnusedPrivateField",
     "PMD.ArrayIsStoredDirectly",
     "PMD.UnusedFormalParameter",
@@ -134,6 +133,7 @@ final class IndexYaml {
      * @param index The index yaml mappings.
      * @param chart The ChartYaml.
      */
+    @SuppressWarnings("unchecked")
     private static void update(final Map<String, Object> index, final ChartYaml chart) {
         final String version = "version";
         final Map<String, Object> entries = (Map<String, Object>) index.get("entries");
