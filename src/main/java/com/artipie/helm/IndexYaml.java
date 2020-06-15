@@ -33,12 +33,19 @@ import com.artipie.asto.rx.RxStorageWrapper;
 import io.reactivex.Completable;
 import io.reactivex.Single;
 import java.nio.charset.StandardCharsets;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 import org.yaml.snakeyaml.Yaml;
 
 /**
  * Index.yaml file. The main file in a chart repo.
  *
+ * @todo #1:30min Ensure that generation work
+ *  In order to check the file generation works fine, we need to create a test, which will install
+ *  pushed before chart and ensure successful installation.
  * @since 0.2
  * @checkstyle MethodBodyCommentsCheck (500 lines)
  * @checkstyle NonStaticMethodCheck (500 lines)
@@ -55,6 +62,12 @@ final class IndexYaml {
      * The index.yalm string.
      */
     private static final Key INDEX_YAML = new Key.From("index.yaml");
+
+    /**
+     * An example of time this formatter produces: 2016-10-06T16:23:20.499814565-06:00 .
+     */
+    private static final DateTimeFormatter TIME_FORMATTER =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.nnnnnnnnnZZZZZ");
 
     /**
      * The storage.
@@ -120,11 +133,29 @@ final class IndexYaml {
      * @param index The index yaml mappings.
      * @param chart The ChartYaml.
      */
+    @SuppressWarnings("unchecked")
     private static void update(final Map<String, Object> index, final ChartYaml chart) {
-        // @todo #89:30min Implement IndexYaml#empty
-        //  This method should update index mappings by scanning a given chart yaml file.
-        //  Read the official docs https://helm.sh/docs/topics/chart_repository/ for more
-        //  details
-        throw new IllegalStateException("Not implemented");
+        final String version = "version";
+        final Map<String, Object> entries = (Map<String, Object>) index.get("entries");
+        final ArrayList<Map<String, Object>> versions = (ArrayList<Map<String, Object>>)
+            entries.getOrDefault(chart.field("name"), new ArrayList<Map<String, Object>>(0));
+        if (versions.stream().noneMatch(map -> map.get(version).equals(chart.field(version)))) {
+            final Map<String, Object> newver = new HashMap<>();
+            newver.put("created", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER));
+            newver.putAll(chart.fields());
+            // @todo #32:30min Digest field
+            //  One of the fields Index.yaml require is "digest" field. This field should also be
+            //  generated.
+            // @todo #32:30min Create a unit test for digest field
+            //  One of the fields Index.yaml require is "digest" field. The test should make verify
+            //  that field has been generated correctly.
+            // @todo #32:30min Urls field
+            //  One of the fields Index.yaml require is "urls" field. This field should also be
+            //  generated.
+            // @todo #32:30min Create a unit test for urls field
+            //  One of the fields Index.yaml require is "urls" field. The test should make verify
+            //  that field has been generated correctly.
+            versions.add(newver);
+        }
     }
 }
