@@ -55,4 +55,12 @@ public class ChartYaml {
     public Object field(final String name) {
         return this.yaml.blockingGet().get(name);
     }
+
+    /**
+     * Return Chart.yaml fields.
+     * @return The fields.
+     */
+    public Map<String, Object> fields() {
+        return this.yaml.blockingGet();
+    }
 }
