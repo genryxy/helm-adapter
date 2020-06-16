@@ -46,7 +46,7 @@ public final class HelmSlice extends Slice.Wrap {
      * Ctor.
      *
      * @param storage The storage.
-     * @param base The base path for urls field.
+     * @param base The base path the slice is expected to be accessed from. Example: https://central.artipie.com/helm
      */
     public HelmSlice(final Storage storage, final String base) {
         super(
