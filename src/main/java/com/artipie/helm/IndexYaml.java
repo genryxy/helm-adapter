@@ -122,10 +122,11 @@ final class IndexYaml {
      * @return The empty yaml mappings.
      */
     private static Map<String, Object> empty() {
-        // @todo #89:30min Implement IndexYaml#empty
-        //  For now this method is not implemented. This method should return mappings related to
-        //  an empty index.yaml file and does not include any chart related information
-        throw new IllegalStateException("Not implemented");
+        final Map<String, Object> res = new HashMap<>(3);
+        res.put("apiVersion", "v1");
+        res.put("entries", new HashMap<String, Object>(0));
+        res.put("generated", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER));
+        return res;
     }
 
     /**
