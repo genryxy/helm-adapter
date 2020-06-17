@@ -153,7 +153,10 @@ final class IndexYaml {
         if (versions.stream().noneMatch(map -> map.get(version).equals(chart.field(version)))) {
             final Map<String, Object> newver = new HashMap<>();
             newver.put("created", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER));
-            newver.put("urls", Collections.singleton(Paths.get(this.base, tgz.name()).normalize().toString()));
+            newver.put(
+                "urls",
+                Collections.singleton(Paths.get(this.base, tgz.name()).normalize().toString())
+            );
             newver.putAll(chart.fields());
             // @todo #32:30min Digest field
             //  One of the fields Index.yaml require is "digest" field. This field should also be
