@@ -25,7 +25,6 @@
 package com.artipie.helm;
 
 import com.artipie.asto.Storage;
-import com.artipie.asto.fs.FileStorage;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.vertx.VertxSliceServer;
@@ -33,14 +32,13 @@ import io.vertx.reactivex.core.Vertx;
 import io.vertx.reactivex.core.buffer.Buffer;
 import io.vertx.reactivex.ext.web.client.WebClient;
 import java.io.IOException;
+import java.net.ServerSocket;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsEqual;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Push helm chart and ensure if index.yaml is generated properly.
@@ -55,11 +53,11 @@ public class SubmitChartITCase {
     public void indexYamlIsCorrect() throws IOException {
         final Vertx vertx = Vertx.vertx();
         final Storage fls = new InMemoryStorage();
+        final int port = rndPort();
         final VertxSliceServer server = new VertxSliceServer(
             vertx,
-            new HelmSlice(fls)
+            new HelmSlice(fls, String.format("http://localhost:%d/", port))
         );
-        final int port = server.start();
         final WebClient web = WebClient.create(vertx);
         final int code = web.post(port, "localhost", "/")
             .rxSendBuffer(
@@ -83,4 +81,14 @@ public class SubmitChartITCase {
         vertx.close();
     }
 
+    /**
+     * Obtain a random port.
+     * @return The random port.
+     * @throws IOException if fails
+     */
+    private static int rndPort() throws IOException {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
+    }
 }
