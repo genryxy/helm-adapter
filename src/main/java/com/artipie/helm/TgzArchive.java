@@ -38,6 +38,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
@@ -74,6 +75,14 @@ final class TgzArchive implements Content {
      */
     TgzArchive(final byte[] content) {
         this.content = content;
+    }
+
+    /**
+     * The digest string.
+     * @return The digest.
+     */
+    public String digest() {
+        return DigestUtils.sha256Hex(this.content);
     }
 
     /**

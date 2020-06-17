@@ -157,10 +157,8 @@ final class IndexYaml {
                 "urls",
                 Collections.singleton(Paths.get(this.base, tgz.name()).normalize().toString())
             );
+            newver.put("digest", tgz.digest());
             newver.putAll(chart.fields());
-            // @todo #32:30min Digest field
-            //  One of the fields Index.yaml require is "digest" field. This field should also be
-            //  generated.
             // @todo #32:30min Create a unit test for digest field
             //  One of the fields Index.yaml require is "digest" field. The test should make verify
             //  that field has been generated correctly.
