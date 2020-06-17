@@ -33,10 +33,11 @@ import com.artipie.asto.rx.RxStorageWrapper;
 import io.reactivex.Completable;
 import io.reactivex.Single;
 import java.nio.charset.StandardCharsets;
-import java.security.NoSuchAlgorithmException;
+import java.nio.file.Paths;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import org.yaml.snakeyaml.Yaml;
@@ -76,11 +77,18 @@ final class IndexYaml {
     private final Storage storage;
 
     /**
+     * The base path for urls field.
+     */
+    private final String base;
+
+    /**
      * Ctor.
      * @param storage The storage.
+     * @param base The base path for urls field.
      */
-    IndexYaml(final Storage storage) {
+    IndexYaml(final Storage storage, final String base) {
         this.storage = storage;
+        this.base = base;
     }
 
     /**
@@ -106,7 +114,7 @@ final class IndexYaml {
                 })
             .map(
                 idx -> {
-                    IndexYaml.update(idx, arch);
+                    this.update(idx, arch);
                     return idx;
                 })
             .flatMapCompletable(
@@ -134,11 +142,9 @@ final class IndexYaml {
      * Perform an update.
      * @param index The index yaml mappings.
      * @param tgz The archive.
-     * @throws NoSuchAlgorithmException If fails.
      */
     @SuppressWarnings("unchecked")
-    private static void update(final Map<String, Object> index, final TgzArchive tgz)
-        throws NoSuchAlgorithmException {
+    private void update(final Map<String, Object> index, final TgzArchive tgz) {
         final ChartYaml chart = tgz.chartYaml();
         final String version = "version";
         final Map<String, Object> entries = (Map<String, Object>) index.get("entries");
@@ -147,14 +153,15 @@ final class IndexYaml {
         if (versions.stream().noneMatch(map -> map.get(version).equals(chart.field(version)))) {
             final Map<String, Object> newver = new HashMap<>();
             newver.put("created", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER));
+            newver.put(
+                "urls",
+                Collections.singleton(Paths.get(this.base, tgz.name()).normalize().toString())
+            );
             newver.put("digest", tgz.digest());
             newver.putAll(chart.fields());
             // @todo #32:30min Create a unit test for digest field
             //  One of the fields Index.yaml require is "digest" field. The test should make verify
             //  that field has been generated correctly.
-            // @todo #32:30min Urls field
-            //  One of the fields Index.yaml require is "urls" field. This field should also be
-            //  generated.
             // @todo #32:30min Create a unit test for urls field
             //  One of the fields Index.yaml require is "urls" field. The test should make verify
             //  that field has been generated correctly.
