@@ -24,7 +24,9 @@
 
 package com.artipie.helm;
 
+import com.artipie.asto.Storage;
 import com.artipie.asto.fs.FileStorage;
+import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.vertx.VertxSliceServer;
 import io.vertx.reactivex.core.Vertx;
@@ -50,9 +52,9 @@ public class SubmitChartITCase {
 
     @Test
     @Disabled
-    public void indexYamlIsCorrect(@TempDir final Path temp) throws IOException {
+    public void indexYamlIsCorrect() throws IOException {
         final Vertx vertx = Vertx.vertx();
-        final FileStorage fls = new FileStorage(temp, vertx.fileSystem());
+        final Storage fls = new InMemoryStorage();
         final VertxSliceServer server = new VertxSliceServer(
             vertx,
             new HelmSlice(fls)
