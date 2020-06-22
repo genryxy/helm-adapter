@@ -56,11 +56,18 @@ public final class PushChartSlice implements Slice {
     private final Storage storage;
 
     /**
+     * The base path for urls.
+     */
+    private final String base;
+
+    /**
      * Ctor.
      * @param storage The storage.
+     * @param base The base path of urls field.
      */
-    public PushChartSlice(final Storage storage) {
+    public PushChartSlice(final Storage storage, final String base) {
         this.storage = storage;
+        this.base = base;
     }
 
     @Override
@@ -98,7 +105,7 @@ public final class PushChartSlice implements Slice {
     private Single<Response> response(final Publisher<ByteBuffer> body) {
         return memory(body).flatMapCompletable(
             arch -> arch.save(this.storage).flatMapCompletable(
-                key -> new IndexYaml(this.storage).update(arch)
+                key -> new IndexYaml(this.storage, this.base).update(arch)
             )
         ).andThen(Single.just(new RsWithStatus(StandardRs.EMPTY, RsStatus.OK)));
     }
