@@ -30,6 +30,7 @@ import com.artipie.http.rq.RqMethod;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.http.rs.RsWithStatus;
 import com.artipie.http.rt.RtRule;
+import com.artipie.http.rt.RtRulePath;
 import com.artipie.http.rt.SliceRoute;
 import com.artipie.http.slice.SliceDownload;
 import com.artipie.http.slice.SliceSimple;
@@ -51,18 +52,18 @@ public final class HelmSlice extends Slice.Wrap {
     public HelmSlice(final Storage storage, final String base) {
         super(
             new SliceRoute(
-                new SliceRoute.Path(
-                    new RtRule.Multiple(
-                        new RtRule.ByMethod(RqMethod.POST),
-                        new RtRule.ByMethod(RqMethod.PUT)
+                new RtRulePath(
+                    new RtRule.Any(
+                        new RtRule.ByMethod(RqMethod.PUT),
+                        new RtRule.ByMethod(RqMethod.POST)
                     ),
                     new PushChartSlice(storage, base)
                 ),
-                new SliceRoute.Path(
+                new RtRulePath(
                     new RtRule.ByMethod(RqMethod.GET),
                     new SliceDownload(storage)
                 ),
-                new SliceRoute.Path(
+                new RtRulePath(
                     RtRule.FALLBACK,
                     new SliceSimple(new RsWithStatus(RsStatus.METHOD_NOT_ALLOWED))
                 )
