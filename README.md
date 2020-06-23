@@ -12,6 +12,21 @@
 
 An Artipie adapter which allow you to host helm carts.  
 
+## Upload a chart
+
+Since helm doesn't officially support chart uploading, the following way is
+recommended to use:
+
+```bash
+curl --data-binary "@mychart-0.1.0.tgz" http://example.com
+```
+
+This is way is similar to the
+[artifactory](https://www.jfrog.com/confluence/display/JFROG/Helm+Chart+Repositories)
+and
+[chartmuseum](https://github.com/helm/chartmuseum#uploading-a-chart-package)
+approaches.
+
 ## Useful links
 
 [The Chart Repository Guide](https://helm.sh/docs/topics/chart_repository/) - describes repository 
