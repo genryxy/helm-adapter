@@ -27,17 +27,17 @@ package com.artipie.helm;
 import com.artipie.asto.Storage;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.http.rs.RsStatus;
+import com.artipie.http.rs.StandardRs;
 import com.artipie.vertx.VertxSliceServer;
 import io.vertx.reactivex.core.Vertx;
 import io.vertx.reactivex.core.buffer.Buffer;
 import io.vertx.reactivex.ext.web.client.WebClient;
 import java.io.IOException;
-import java.net.ServerSocket;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsEqual;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -49,27 +49,33 @@ import org.junit.jupiter.api.Test;
 public class SubmitChartITCase {
 
     @Test
-    @Disabled
-    public void indexYamlIsCorrect() throws IOException {
+    public void indexYamlIsCorrect() throws IOException, URISyntaxException {
         final Vertx vertx = Vertx.vertx();
         final Storage fls = new InMemoryStorage();
         final int port = rndPort();
         final VertxSliceServer server = new VertxSliceServer(
             vertx,
-            new HelmSlice(fls, String.format("http://localhost:%d/", port))
+            new HelmSlice(fls, String.format("http://localhost:%d/", port)),
+            port
         );
         final WebClient web = WebClient.create(vertx);
-        final int code = web.post(port, "localhost", "/")
-            .rxSendBuffer(
-                Buffer.buffer(
-                    Files.readAllBytes(
-                        Paths.get("./src/test/resources/tomcat-0.4.1.tgz")
+        try {
+            server.start();
+            final int code = web.post(port, "localhost", "/")
+                .rxSendBuffer(
+                    Buffer.buffer(
+                        Files.readAllBytes(
+                            Paths.get(
+                                Thread.currentThread()
+                                    .getContextClassLoader()
+                                    .getResource("tomcat-0.4.1.tgz")
+                                    .toURI()
+                            )
+                        )
                     )
                 )
-            )
-            .blockingGet()
-            .statusCode();
-        try {
+                .blockingGet()
+                .statusCode();
             MatcherAssert.assertThat(
                 code,
                 new IsEqual<>(Integer.parseInt(RsStatus.OK.code()))
@@ -87,11 +93,19 @@ public class SubmitChartITCase {
     /**
      * Obtain a random port.
      * @return The random port.
-     * @throws IOException if fails
      */
-    private static int rndPort() throws IOException {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
+    private static int rndPort() {
+        final Vertx vertx = Vertx.vertx();
+        final VertxSliceServer server = new VertxSliceServer(
+            vertx,
+            (line, headers, body) -> StandardRs.EMPTY
+        );
+        try {
+            return server.start();
+        } finally {
+            server.stop();
+            vertx.close();
         }
     }
+
 }
