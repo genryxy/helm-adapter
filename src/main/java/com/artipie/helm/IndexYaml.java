@@ -33,7 +33,6 @@ import com.artipie.asto.rx.RxStorageWrapper;
 import io.reactivex.Completable;
 import io.reactivex.Single;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -167,7 +166,7 @@ final class IndexYaml {
             newver.put(
                 "urls",
                 new ArrayList<>(
-                    Collections.singleton(Paths.get(this.base, tgz.name()).normalize().toString())
+                    Collections.singleton(String.format("%s%s", this.base, tgz.name()))
                 )
             );
             newver.put("digest", tgz.digest());
