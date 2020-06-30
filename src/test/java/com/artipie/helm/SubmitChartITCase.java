@@ -97,7 +97,6 @@ public class SubmitChartITCase {
                     )
                 )
                 .blockingGet();
-            System.out.println(localhost.bodyAsString());
             final int code = localhost
                 .statusCode();
             MatcherAssert.assertThat(
