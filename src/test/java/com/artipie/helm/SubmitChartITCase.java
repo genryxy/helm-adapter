@@ -114,6 +114,7 @@ public class SubmitChartITCase {
                 .withFileSystemBind("./src/test/resources", "/home");
             helm.start();
             final File index = new File("./src/test/resources/index.yaml");
+            index.deleteOnExit();
             Awaitility.await().atMost(5, TimeUnit.SECONDS).until(index::exists);
             final String expected = new String(Files.readAllBytes(index.toPath()));
             LoggerFactory.getLogger(SubmitChartITCase.class).info(
