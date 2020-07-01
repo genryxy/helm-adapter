@@ -137,6 +137,11 @@ public class SubmitChartITCase {
         }
     }
 
+    /**
+     * Parse and return index.yaml.
+     * @param yaml The index.yaml file passed as string
+     * @return The first element in entries->tomcat
+     */
     @SuppressWarnings("unchecked")
     private static Map<String, Object> tomcatZeroEntry(final String yaml) {
         return (
