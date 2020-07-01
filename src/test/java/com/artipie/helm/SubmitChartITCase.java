@@ -111,6 +111,10 @@ public class SubmitChartITCase {
             final HelmContainer helm = new HelmContainer()
                 .withCommand("repo", "index", ".")
                 .withWorkingDirectory("/home/")
+                // @todo #44:30min Bind reference repo to a temp dir
+                //  The generation of the reference index.yaml is performed in the resource folder.
+                //  It is not a good approach which might case problems with subsequent test. The
+                //  generation should be performed in a temp folder.
                 .withFileSystemBind("./src/test/resources", "/home");
             helm.start();
             final File index = new File("./src/test/resources/index.yaml");
