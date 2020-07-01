@@ -28,6 +28,8 @@ import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.asto.blocking.BlockingStorage;
 import com.artipie.asto.memory.InMemoryStorage;
+import com.artipie.asto.Storage;
+import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.http.rs.StandardRs;
 import com.artipie.vertx.VertxSliceServer;
@@ -38,6 +40,7 @@ import io.vertx.reactivex.core.buffer.Buffer;
 import io.vertx.reactivex.ext.web.client.WebClient;
 import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -68,8 +71,7 @@ import org.testcontainers.shaded.org.yaml.snakeyaml.Yaml;
 public class SubmitChartITCase {
 
     @Test
-    @Disabled
-    public void indexYamlIsCorrect() throws IOException {
+    public void indexYamlIsCorrect() throws IOException, URISyntaxException {
         final Vertx vertx = Vertx.vertx();
         final Storage fls = new InMemoryStorage();
         final int port = rndPort();
