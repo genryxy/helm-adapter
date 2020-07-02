@@ -66,6 +66,7 @@ import org.testcontainers.shaded.org.yaml.snakeyaml.Yaml;
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  * @checkstyle MagicNumberCheck (500 lines)
  * @checkstyle ExecutableStatementCountCheck (500 lines)
+ * @checkstyle AvoidDuplicateLiterals (500 lines)
  */
 @DisabledIfSystemProperty(named = "os.name", matches = "Windows.*")
 public class SubmitChartITCase {
