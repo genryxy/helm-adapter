@@ -41,7 +41,9 @@ import com.artipie.http.slice.SliceSimple;
 
 /**
  * HelmSlice.
- *
+ * @todo #11:30min Add a test to check if auth works
+ *  For now basic auth is implemented and work with anonymous credentials. We need to check if it
+ *  work with non anonymous credentials.
  * @since 0.1
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  * @checkstyle ParameterNumberCheck (500 lines)
