@@ -44,6 +44,7 @@ import com.artipie.http.slice.SliceSimple;
  *
  * @since 0.1
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
+ * @checkstyle ParameterNumberCheck (500 lines)
  */
 public final class HelmSlice extends Slice.Wrap {
 
@@ -52,12 +53,10 @@ public final class HelmSlice extends Slice.Wrap {
      */
     private static final String PERM_PUBLISH = "publish";
 
-
     /**
      * Permission to access repository files.
      */
     private static final String PERM_DOWNLOAD = "download";
-
 
     /**
      * Ctor.
