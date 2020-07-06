@@ -55,6 +55,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.LoggerFactory;
+import org.testcontainers.Testcontainers;
+import org.testcontainers.containers.Container;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.shaded.org.yaml.snakeyaml.Yaml;
 
@@ -134,6 +136,64 @@ public class SubmitChartITCase {
             server.close();
             vertx.close();
         }
+    }
+
+    @Test
+    public void helmRepoAddWorks() throws IOException, URISyntaxException, InterruptedException {
+        final Vertx vertx = Vertx.vertx();
+        final Storage fls = new InMemoryStorage();
+        final int port = rndPort();
+        final String turl = String.format("http://host.testcontainers.internal:%d/", port);
+        Testcontainers.exposeHostPorts(port);
+        final VertxSliceServer server = new VertxSliceServer(vertx, new HelmSlice(fls, turl), port);
+        final byte[] tomcat = Files.readAllBytes(
+            Paths.get(
+                Thread.currentThread()
+                    .getContextClassLoader()
+                    .getResource("tomcat-0.4.1.tgz")
+                    .toURI()
+            )
+        );
+        final WebClient web = WebClient.create(vertx);
+        final HelmContainer helm = new HelmContainer()
+            .withCreateContainerCmdModifier(
+                cmd -> cmd.withEntrypoint("/bin/sh").withCmd("-c", "while sleep 3600; do :; done")
+            );
+        try {
+            server.start();
+            final int code = web.post(port, "localhost", "/")
+                .rxSendBuffer(Buffer.buffer(tomcat))
+                .blockingGet()
+                .statusCode();
+            MatcherAssert.assertThat(
+                code,
+                new IsEqual<>(Integer.parseInt(RsStatus.OK.code()))
+            );
+            helm.start();
+            exec(helm, "helm", "init", "--client-only", "--debug");
+            exec(helm, "helm", "repo", "add", "test", turl);
+            exec(helm, "helm", "repo", "update");
+        } finally {
+            helm.stop();
+            web.close();
+            server.close();
+            vertx.close();
+        }
+    }
+
+    private void exec(
+        final HelmContainer helm,
+        final String... cmd) throws IOException, InterruptedException {
+        final String joined = String.join(" ", cmd);
+        LoggerFactory.getLogger(SubmitChartITCase.class).info("Executing:\n{}", joined);
+        final Container.ExecResult exec = helm.execInContainer(cmd);
+        LoggerFactory.getLogger(SubmitChartITCase.class)
+            .info("STDOUT:\n{}\nSTDERR:\n{}", exec.getStdout(), exec.getStderr());
+        MatcherAssert.assertThat(
+            String.format("'%s' failed with non-zero code", joined),
+            exec.getExitCode(),
+            new IsEqual<>(0)
+        );
     }
 
     /**
