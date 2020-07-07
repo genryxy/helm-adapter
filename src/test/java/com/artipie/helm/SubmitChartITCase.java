@@ -165,6 +165,11 @@ public class SubmitChartITCase {
                 .rxSendBuffer(Buffer.buffer(tomcat))
                 .blockingGet()
                 .statusCode();
+            if (code != Integer.parseInt(RsStatus.OK.code())) {
+                throw new IllegalStateException(
+                    String.format("Received code non-200 code:%d", code)
+                );
+            }
             MatcherAssert.assertThat(
                 code,
                 new IsEqual<>(Integer.parseInt(RsStatus.OK.code()))
@@ -189,11 +194,12 @@ public class SubmitChartITCase {
         final Container.ExecResult exec = helm.execInContainer(cmd);
         LoggerFactory.getLogger(SubmitChartITCase.class)
             .info("STDOUT:\n{}\nSTDERR:\n{}", exec.getStdout(), exec.getStderr());
-        MatcherAssert.assertThat(
-            String.format("'%s' failed with non-zero code", joined),
-            exec.getExitCode(),
-            new IsEqual<>(0)
-        );
+        final int code = exec.getExitCode();
+        if (code != 0) {
+            throw new IllegalStateException(
+                String.format("'%s' failed with %s code", joined, code)
+            );
+        }
     }
 
     /**
