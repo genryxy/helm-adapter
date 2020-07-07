@@ -182,10 +182,12 @@ public class SubmitChartITCase {
             helm.start();
             exec(helm, "helm", "init", "--client-only", "--debug");
             MatcherAssert.assertThat(
+                "helm repo add failed",
                 exec(helm, "helm", "repo", "add", "test", turl),
                 new IsEqual<>(0)
             );
             MatcherAssert.assertThat(
+                "helm repo update failed",
                 exec(helm, "helm", "repo", "update"),
                 new IsEqual<>(0)
             );
