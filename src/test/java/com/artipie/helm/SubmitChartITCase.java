@@ -176,8 +176,14 @@ public class SubmitChartITCase {
             );
             helm.start();
             exec(helm, "helm", "init", "--client-only", "--debug");
-            exec(helm, "helm", "repo", "add", "test", turl);
-            exec(helm, "helm", "repo", "update");
+            MatcherAssert.assertThat(
+                exec(helm, "helm", "repo", "add", "test", turl),
+                new IsEqual<>(0)
+            );
+            MatcherAssert.assertThat(
+                exec(helm, "helm", "repo", "update"),
+                new IsEqual<>(0)
+            );
         } finally {
             helm.stop();
             web.close();
@@ -186,7 +192,7 @@ public class SubmitChartITCase {
         }
     }
 
-    private void exec(
+    private int exec(
         final HelmContainer helm,
         final String... cmd) throws IOException, InterruptedException {
         final String joined = String.join(" ", cmd);
@@ -196,10 +202,10 @@ public class SubmitChartITCase {
             .info("STDOUT:\n{}\nSTDERR:\n{}", exec.getStdout(), exec.getStderr());
         final int code = exec.getExitCode();
         if (code != 0) {
-            throw new IllegalStateException(
-                String.format("'%s' failed with %s code", joined, code)
-            );
+            LoggerFactory.getLogger(SubmitChartITCase.class)
+                .error("'{}' failed with {} code", joined, code);
         }
+        return code;
     }
 
     /**
