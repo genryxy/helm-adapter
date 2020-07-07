@@ -170,10 +170,6 @@ public class SubmitChartITCase {
                     String.format("Received code non-200 code:%d", code)
                 );
             }
-            MatcherAssert.assertThat(
-                code,
-                new IsEqual<>(Integer.parseInt(RsStatus.OK.code()))
-            );
             helm.start();
             exec(helm, "helm", "init", "--client-only", "--debug");
             MatcherAssert.assertThat(
