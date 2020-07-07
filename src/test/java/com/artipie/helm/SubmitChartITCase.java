@@ -138,6 +138,15 @@ public class SubmitChartITCase {
         }
     }
 
+    /**
+     * Helm add repo works.
+     * @todo #8:30min Move to separated class
+     *  The preparation steps and finish steps could be move to @BeforeEach and @AfterEach annotated
+     *  methods.
+     * @throws IOException If fails
+     * @throws URISyntaxException If fails
+     * @throws InterruptedException If fails
+     */
     @Test
     public void helmRepoAddWorks() throws IOException, URISyntaxException, InterruptedException {
         final Vertx vertx = Vertx.vertx();
