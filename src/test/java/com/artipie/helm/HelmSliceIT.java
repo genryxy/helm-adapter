@@ -57,7 +57,7 @@ import org.testcontainers.containers.GenericContainer;
  */
 @DisabledIfSystemProperty(named = "os.name", matches = "Windows.*")
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
-public final class HelmCompatibilityITCase {
+public final class HelmSliceIT {
 
     /**
      * The vertx.
@@ -67,7 +67,7 @@ public final class HelmCompatibilityITCase {
     /**
      * The helm.
      */
-    private HelmCompatibilityITCase.HelmContainer helm;
+    private HelmSliceIT.HelmContainer helm;
 
     /**
      * The web.
@@ -105,7 +105,7 @@ public final class HelmCompatibilityITCase {
             )
         );
         this.web = WebClient.create(this.vertx);
-        this.helm = new HelmCompatibilityITCase.HelmContainer()
+        this.helm = new HelmSliceIT.HelmContainer()
             .withCreateContainerCmdModifier(
                 cmd -> cmd.withEntrypoint("/bin/sh").withCmd("-c", "while sleep 3600; do :; done")
             );
@@ -152,7 +152,7 @@ public final class HelmCompatibilityITCase {
     }
 
     private int exec(
-        final HelmCompatibilityITCase.HelmContainer helmc,
+        final HelmSliceIT.HelmContainer helmc,
         final String... cmd) throws IOException, InterruptedException {
         final String joined = String.join(" ", cmd);
         LoggerFactory.getLogger(EnsureIndexIsGoodITCase.class).info("Executing:\n{}", joined);
@@ -184,7 +184,7 @@ public final class HelmCompatibilityITCase {
      * @since 0.2
      */
     private static class HelmContainer extends
-        GenericContainer<HelmCompatibilityITCase.HelmContainer> {
+        GenericContainer<HelmSliceIT.HelmContainer> {
         HelmContainer() {
             super("alpine/helm:2.12.1");
         }
