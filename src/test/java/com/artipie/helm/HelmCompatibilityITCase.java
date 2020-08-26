@@ -26,12 +26,12 @@ package com.artipie.helm;
 import com.artipie.asto.Storage;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.http.rs.RsStatus;
-import com.artipie.http.rs.StandardRs;
 import com.artipie.vertx.VertxSliceServer;
 import io.vertx.reactivex.core.Vertx;
 import io.vertx.reactivex.core.buffer.Buffer;
 import io.vertx.reactivex.ext.web.client.WebClient;
 import java.io.IOException;
+import java.net.ServerSocket;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -172,17 +172,9 @@ public final class HelmCompatibilityITCase {
      *
      * @return The random port.
      */
-    private static int rndPort() {
-        final Vertx vertx = Vertx.vertx();
-        final VertxSliceServer server = new VertxSliceServer(
-            vertx,
-            (line, headers, body) -> StandardRs.EMPTY
-        );
-        try {
-            return server.start();
-        } finally {
-            server.stop();
-            vertx.close();
+    private static int rndPort() throws IOException {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
         }
     }
 
