@@ -36,8 +36,6 @@ import io.vertx.reactivex.core.Vertx;
 import io.vertx.reactivex.core.buffer.Buffer;
 import io.vertx.reactivex.ext.web.client.WebClient;
 import java.io.File;
-import java.io.IOException;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -72,7 +70,7 @@ import org.testcontainers.shaded.org.yaml.snakeyaml.Yaml;
 public class HelmSliceIT {
 
     @Test
-    public void indexYamlIsCorrect(@TempDir final Path tmp) throws IOException, URISyntaxException {
+    public void indexYamlIsCorrect(@TempDir final Path tmp) throws Exception {
         final Vertx vertx = Vertx.vertx();
         final Storage fls = new InMemoryStorage();
         final int port = rndPort();

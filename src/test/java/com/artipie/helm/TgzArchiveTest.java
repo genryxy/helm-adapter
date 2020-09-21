@@ -73,7 +73,7 @@ public final class TgzArchiveTest {
         // @todo #19:30min Replace FileStorage with InMemory one
         //  Currently FileStorage is used in this test, but we need to refactor it to use InMemory
         //  storage.
-        final Storage storage = new FileStorage(tmp, vertx.fileSystem());
+        final Storage storage = new FileStorage(tmp);
         new TgzArchive(
             Files.readAllBytes(
                 Paths.get("./src/test/resources/tomcat-0.4.1.tgz")
