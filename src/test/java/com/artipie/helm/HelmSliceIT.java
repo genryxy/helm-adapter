@@ -72,7 +72,7 @@ import org.testcontainers.shaded.org.yaml.snakeyaml.Yaml;
 public class HelmSliceIT {
 
     @Test
-    public void indexYamlIsCorrect(@TempDir final Path tmp) throws IOException, URISyntaxException {
+    public void indexYamlIsCorrect(@TempDir final Path tmp) throws Exception {
         final Vertx vertx = Vertx.vertx();
         final Storage fls = new InMemoryStorage();
         final int port = rndPort();

@@ -26,6 +26,7 @@ package com.artipie.helm;
 
 import com.artipie.asto.Storage;
 import com.artipie.http.Slice;
+import com.artipie.http.auth.Action;
 import com.artipie.http.auth.Identities;
 import com.artipie.http.auth.Permission;
 import com.artipie.http.auth.Permissions;
@@ -33,6 +34,7 @@ import com.artipie.http.auth.SliceAuth;
 import com.artipie.http.rq.RqMethod;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.http.rs.RsWithStatus;
+import com.artipie.http.rt.ByMethodsRule;
 import com.artipie.http.rt.RtRule;
 import com.artipie.http.rt.RtRulePath;
 import com.artipie.http.rt.SliceRoute;
@@ -49,16 +51,6 @@ import com.artipie.http.slice.SliceSimple;
  * @checkstyle ParameterNumberCheck (500 lines)
  */
 public final class HelmSlice extends Slice.Wrap {
-
-    /**
-     * Permission to publish a chart.
-     */
-    private static final String PERM_PUBLISH = "publish";
-
-    /**
-     * Permission to access repository files.
-     */
-    private static final String PERM_DOWNLOAD = "download";
 
     /**
      * Ctor.
@@ -87,20 +79,20 @@ public final class HelmSlice extends Slice.Wrap {
             new SliceRoute(
                 new RtRulePath(
                     new RtRule.Any(
-                        new RtRule.ByMethod(RqMethod.PUT),
-                        new RtRule.ByMethod(RqMethod.POST)
+                        new ByMethodsRule(RqMethod.PUT),
+                        new ByMethodsRule(RqMethod.POST)
                     ),
                     new SliceAuth(
                         new PushChartSlice(storage, base),
-                        new Permission.ByName(HelmSlice.PERM_PUBLISH, perms),
+                        new Permission.ByName(perms, Action.Standard.WRITE),
                         users
                     )
                 ),
                 new RtRulePath(
-                    new RtRule.ByMethod(RqMethod.GET),
+                    new ByMethodsRule(RqMethod.GET),
                     new SliceAuth(
                         new SliceDownload(storage),
-                        new Permission.ByName(HelmSlice.PERM_DOWNLOAD, perms),
+                        new Permission.ByName(perms, Action.Standard.READ),
                         users
                     )
                 ),
