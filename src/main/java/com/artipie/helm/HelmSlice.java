@@ -27,10 +27,10 @@ package com.artipie.helm;
 import com.artipie.asto.Storage;
 import com.artipie.http.Slice;
 import com.artipie.http.auth.Action;
-import com.artipie.http.auth.Identities;
+import com.artipie.http.auth.Authentication;
+import com.artipie.http.auth.BasicAuthSlice;
 import com.artipie.http.auth.Permission;
 import com.artipie.http.auth.Permissions;
-import com.artipie.http.auth.SliceAuth;
 import com.artipie.http.rq.RqMethod;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.http.rs.RsWithStatus;
@@ -59,7 +59,7 @@ public final class HelmSlice extends Slice.Wrap {
      * @param base The base path the slice is expected to be accessed from. Example: https://central.artipie.com/helm
      */
     public HelmSlice(final Storage storage, final String base) {
-        this(storage, base, Permissions.FREE, Identities.ANONYMOUS);
+        this(storage, base, Permissions.FREE, Authentication.ANONYMOUS);
     }
 
     /**
@@ -68,13 +68,13 @@ public final class HelmSlice extends Slice.Wrap {
      * @param storage The storage.
      * @param base The base path the slice is expected to be accessed from. Example: https://central.artipie.com/helm
      * @param perms Access permissions.
-     * @param users User identities.
+     * @param auth Authentication.
      */
     public HelmSlice(
         final Storage storage,
         final String base,
         final Permissions perms,
-        final Identities users) {
+        final Authentication auth) {
         super(
             new SliceRoute(
                 new RtRulePath(
@@ -82,18 +82,18 @@ public final class HelmSlice extends Slice.Wrap {
                         new ByMethodsRule(RqMethod.PUT),
                         new ByMethodsRule(RqMethod.POST)
                     ),
-                    new SliceAuth(
+                    new BasicAuthSlice(
                         new PushChartSlice(storage, base),
-                        new Permission.ByName(perms, Action.Standard.WRITE),
-                        users
+                        auth,
+                        new Permission.ByName(perms, Action.Standard.WRITE)
                     )
                 ),
                 new RtRulePath(
                     new ByMethodsRule(RqMethod.GET),
-                    new SliceAuth(
+                    new BasicAuthSlice(
                         new SliceDownload(storage),
-                        new Permission.ByName(perms, Action.Standard.READ),
-                        users
+                        auth,
+                        new Permission.ByName(perms, Action.Standard.READ)
                     )
                 ),
                 new RtRulePath(
