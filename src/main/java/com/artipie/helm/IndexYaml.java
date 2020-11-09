@@ -48,7 +48,7 @@ import java.util.stream.Collectors;
  *
  * @since 0.2
  */
-@SuppressWarnings("PMD.AvoidDuplicateLiterals")
+@SuppressWarnings({"PMD.AvoidDuplicateLiterals", "PMD.ConfusingTernary"})
 final class IndexYaml {
 
     /**
@@ -145,7 +145,7 @@ final class IndexYaml {
                     "entries",
                     this.nodePresentVersionNotMatch(entries, tgz, chart)
                 ).build();
-            } else if (chartnode.isEmpty()) {
+            } else if (!chartnode.isPresent()) {
                 resyaml = indexbldr.add(
                     "entries",
                     this.nodeNotPresent(entries, tgz, chart)
