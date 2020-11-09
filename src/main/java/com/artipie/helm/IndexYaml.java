@@ -23,6 +23,11 @@
  */
 package com.artipie.helm;
 
+import com.amihaiemil.eoyaml.Yaml;
+import com.amihaiemil.eoyaml.YamlMapping;
+import com.amihaiemil.eoyaml.YamlMappingBuilder;
+import com.amihaiemil.eoyaml.YamlNode;
+import com.amihaiemil.eoyaml.YamlSequenceBuilder;
 import com.artipie.asto.Concatenation;
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
@@ -32,29 +37,18 @@ import com.artipie.asto.rx.RxStorage;
 import com.artipie.asto.rx.RxStorageWrapper;
 import io.reactivex.Completable;
 import io.reactivex.Single;
-import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import org.yaml.snakeyaml.DumperOptions;
-import org.yaml.snakeyaml.Yaml;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Index.yaml file. The main file in a chart repo.
  *
  * @since 0.2
- * @checkstyle MethodBodyCommentsCheck (500 lines)
- * @checkstyle NonStaticMethodCheck (500 lines)
  */
-@SuppressWarnings({"PMD.UnusedFormalParameter",
-    "PMD.UnusedPrivateField",
-    "PMD.ArrayIsStoredDirectly",
-    "PMD.UnusedFormalParameter",
-    "PMD.AvoidDuplicateLiterals",
-    "PMD.SingularField"})
+@SuppressWarnings("PMD.AvoidDuplicateLiterals")
 final class IndexYaml {
 
     /**
@@ -98,34 +92,23 @@ final class IndexYaml {
         return rxs.exists(IndexYaml.INDEX_YAML)
             .flatMap(
                 exist -> {
-                    final Single<Map<String, Object>> result;
+                    final Single<YamlMapping> result;
                     if (exist) {
                         result = rxs.value(IndexYaml.INDEX_YAML)
                             .flatMap(content -> new Concatenation(content).single())
                             .map(buf -> new String(new Remaining(buf).bytes()))
-                            .map(content -> new Yaml().load(content));
+                            .map(content -> Yaml.createYamlInput(content).readYamlMapping());
                     } else {
                         result = Single.just(IndexYaml.empty());
                     }
                     return result;
                 })
-            .map(
-                idx -> {
-                    this.update(idx, arch);
-                    return idx;
-                })
+            .map(idx -> this.update(idx, arch))
             .flatMapCompletable(
-                idx -> {
-                    final DumperOptions options = new DumperOptions();
-                    options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
-                    options.setPrettyFlow(true);
-                    return rxs.save(
-                        IndexYaml.INDEX_YAML,
-                        new Content.From(
-                            new Yaml(options).dump(idx).getBytes(StandardCharsets.UTF_8)
-                        )
-                    );
-                }
+                idx -> rxs.save(
+                    IndexYaml.INDEX_YAML,
+                    new Content.From(idx.toString().getBytes())
+                )
             );
     }
 
@@ -133,48 +116,206 @@ final class IndexYaml {
      * Return an empty Index mappings.
      * @return The empty yaml mappings.
      */
-    private static Map<String, Object> empty() {
-        final Map<String, Object> res = new HashMap<>(3);
-        res.put("apiVersion", "v1");
-        res.put("entries", new HashMap<String, Object>(0));
-        res.put("generated", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER));
-        return res;
+    private static YamlMapping empty() {
+        return Yaml.createYamlMappingBuilder()
+            .add("apiVersion", "v1")
+            .add("generated", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER))
+            .build();
     }
 
     /**
      * Perform an update.
      * @param index The index yaml mappings.
      * @param tgz The archive.
+     * @return Yaml mapping with updates.
      */
-    @SuppressWarnings("unchecked")
-    private void update(final Map<String, Object> index, final TgzArchive tgz) {
+    private YamlMapping update(final YamlMapping index, final TgzArchive tgz) {
         final ChartYaml chart = tgz.chartYaml();
-        final String version = "version";
-        final Map<String, Object> entries = (Map<String, Object>) index.get("entries");
-        final String name = (String) chart.field("name");
-        if (!entries.containsKey(name)) {
-            entries.put(name, new ArrayList<Map<String, Object>>(0));
-        }
-        final ArrayList<Map<String, Object>> versions = (ArrayList<Map<String, Object>>)
-            entries.get(name);
-        if (versions.stream().noneMatch(map -> map.get(version).equals(chart.field(version)))) {
-            final Map<String, Object> newver = new HashMap<>();
-            newver.put("created", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER));
-            newver.put(
-                "urls",
-                new ArrayList<>(
-                    Collections.singleton(String.format("%s%s", this.base, tgz.name()))
-                )
+        final YamlMapping resyaml;
+        YamlMappingBuilder indexbldr = Yaml.createYamlMappingBuilder();
+        indexbldr = IndexYaml.addNodesExceptEntries(index, indexbldr);
+        final Optional<YamlNode> entriesnode = IndexYaml.entriesNode(index);
+        if (entriesnode.isPresent()) {
+            final YamlMapping entries = entriesnode.get().asMapping();
+            final Optional<YamlNode> chartnode = IndexYaml.chartNode(index, chart.name());
+            if (chartnode.isPresent()
+                && IndexYaml.notMatchVersion(chartnode.get(), chart.version())
+            ) {
+                resyaml = indexbldr.add(
+                    "entries",
+                    this.nodePresentVersionNotMatch(entries, tgz, chart)
+                ).build();
+            } else if (chartnode.isEmpty()) {
+                resyaml = indexbldr.add(
+                    "entries",
+                    this.nodeNotPresent(entries, tgz, chart)
+                ).build();
+            } else {
+                resyaml = index;
+            }
+        } else {
+            YamlMappingBuilder tmp = Yaml.createYamlMappingBuilder();
+            tmp = IndexYaml.addNodesExceptEntries(index, tmp);
+            tmp = tmp.add(
+                "entries", Yaml.createYamlMappingBuilder()
+                    .add(
+                        chart.name(), Yaml.createYamlSequenceBuilder()
+                            .add(this.newChart(tgz, chart).build())
+                            .build()
+                    ).build()
             );
-            newver.put("digest", tgz.digest());
-            newver.putAll(chart.fields());
-            // @todo #32:30min Create a unit test for digest field
-            //  One of the fields Index.yaml require is "digest" field. The test should make verify
-            //  that field has been generated correctly.
-            // @todo #32:30min Create a unit test for urls field
-            //  One of the fields Index.yaml require is "urls" field. The test should make verify
-            //  that field has been generated correctly.
-            versions.add(newver);
+            resyaml = tmp.build();
         }
+        return resyaml;
+        // @checkstyle @checkstyle MethodBodyCommentsCheck (8 lines)
+        // @todo #32:30min Create a unit test for digest field
+        //  One of the fields Index.yaml require is "digest" field. The test should make verify
+        //  that field has been generated correctly.
+        // @todo #32:30min Create a unit test for urls field
+        //  One of the fields Index.yaml require is "urls" field. The test should make verify
+        //  that field has been generated correctly.
+    }
+
+    /**
+     * Creates a new instance of `entries` node with a new version
+     * for the chart that is present.
+     * @param entries Previous values for `entries` node
+     * @param tgz Tgz archive
+     * @param chart Chart with yaml for a new version
+     * @return Yaml mapping of the new `entities` node.
+     */
+    private YamlMapping nodePresentVersionNotMatch(final YamlMapping entries, final TgzArchive tgz,
+        final ChartYaml chart) {
+        final YamlMappingBuilder chartbldr = this.newChart(tgz, chart);
+        YamlMappingBuilder newentries = Yaml.createYamlMappingBuilder();
+        for (final YamlNode node : entries.keys()) {
+            final String name = node.asScalar().value();
+            if (name.equals(chart.name())) {
+                YamlSequenceBuilder seq = Yaml.createYamlSequenceBuilder()
+                    .add(chartbldr.build());
+                for (final YamlNode vers : entries.value(name).asSequence()) {
+                    seq = seq.add(vers);
+                }
+                newentries = newentries.add(name, seq.build());
+            } else {
+                newentries = newentries.add(name, entries.value(name));
+            }
+        }
+        return newentries.build();
+    }
+
+    /**
+     * Creates a new instance of `entries` node for chart that
+     * is not present.
+     * @param entries Previous values for `entries` node
+     * @param tgz Tgz archive
+     * @param chart Chart with yaml for a new version
+     * @return Yaml mapping of the new `entities` node.
+     */
+    private YamlMapping nodeNotPresent(final YamlMapping entries, final TgzArchive tgz,
+        final ChartYaml chart) {
+        final YamlMappingBuilder chartbldr = this.newChart(tgz, chart);
+        YamlMappingBuilder newentries = Yaml.createYamlMappingBuilder();
+        for (final YamlNode node : entries.keys()) {
+            final String name = node.asScalar().value();
+            newentries = newentries.add(name, entries.value(name));
+        }
+        return newentries.add(chart.name(), chartbldr.build()).build();
+    }
+
+    /**
+     * Creates yaml mapping builder for the chart.
+     * @param tgz Tgz archive
+     * @param chart Chart with yaml for a new version
+     * @return Yaml mapping builder for the chart.
+     */
+    private YamlMappingBuilder newChart(final TgzArchive tgz, final ChartYaml chart) {
+        final YamlMappingBuilder builder = Yaml.createYamlMappingBuilder()
+            .add("created", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER))
+            .add("digest", tgz.digest())
+            .add(
+                "urls", Yaml.createYamlSequenceBuilder()
+                    .add(String.format("%s%s", this.base, chart.name()))
+                    .build()
+            );
+        return IndexYaml.addNodesExceptEntries(chart.yamlMapping(), builder);
+    }
+
+    /**
+     * Creates yaml mapping builder with all nodes from yaml,
+     * except `entries` node.
+     * @param yaml Source yaml
+     * @param builder Builder
+     * @return Yaml mapping builder
+     */
+    private static YamlMappingBuilder addNodesExceptEntries(final YamlMapping yaml,
+        final YamlMappingBuilder builder) {
+        YamlMappingBuilder res = builder;
+        final Set<YamlNode> nodes = yaml.keys().stream()
+            .filter(node -> !node.asScalar().value().equals("entries"))
+            .collect(Collectors.toSet());
+        for (final YamlNode node : nodes) {
+            final String name = node.asScalar().value();
+            if (name.equals("appVersion")) {
+                res = res.add(name, String.format("'%s'", yaml.string(name)));
+            } else {
+                res = res.add(name, yaml.value(name));
+            }
+        }
+        return res;
+    }
+
+    /**
+     * Optional for `entries` section.
+     * @param indexyaml Source yaml
+     * @return Optional for `entries` section.
+     */
+    private static Optional<YamlNode> entriesNode(final YamlMapping indexyaml) {
+        final Optional<YamlNode> res;
+        if (indexyaml.keys().stream()
+            .anyMatch(node -> node.asScalar().value().equals("entries"))
+        ) {
+            res = Optional.of(indexyaml.value("entries"));
+        } else {
+            res = Optional.empty();
+        }
+        return res;
+    }
+
+    /**
+     * Search a specified chart name among entries from `entries` section.
+//     * @param entries Chart names from `entries` section
+     * @param indexyaml Source yaml
+     * @param chartname Searched chart name
+     * @return Optional for chart name.
+     */
+    private static Optional<YamlNode> chartNode(final YamlMapping indexyaml,
+        final String chartname) {
+        final Optional<YamlNode> res;
+        if (indexyaml.value("entries").asMapping()
+            .keys().stream()
+            .anyMatch(node -> node.asScalar().value().equals(chartname))
+        ) {
+            res = Optional.of(indexyaml.value("entries").asMapping().value(chartname));
+        } else {
+            res = Optional.empty();
+        }
+        return res;
+    }
+
+    /**
+     * Checks whether the specified version exists in the chart node.
+     * @param chartnode Chart node
+     * @param version Target version
+     * @return True - none chart's version matches a specified version, false - otherwise.
+     */
+    private static boolean notMatchVersion(final YamlNode chartnode, final String version) {
+        return chartnode.asSequence()
+            .values().stream()
+            .noneMatch(
+                node -> node.asMapping()
+                    .string("version")
+                    .equals(version)
+            );
     }
 }

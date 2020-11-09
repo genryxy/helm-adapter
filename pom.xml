@@ -31,6 +31,8 @@ SOFTWARE.
   <modelVersion>4.0.0</modelVersion>
   <properties>
     <vertx.version>3.8.4</vertx.version>
+    <maven.compiler.source>11</maven.compiler.source>
+    <maven.compiler.target>11</maven.compiler.target>
   </properties>
   <artifactId>helm-adapter</artifactId>
   <version>1.0-SNAPSHOT</version>
@@ -62,9 +64,9 @@ SOFTWARE.
     </dependency>
     <!-- Yaml parsing -->
     <dependency>
-      <groupId>org.yaml</groupId>
-      <artifactId>snakeyaml</artifactId>
-      <version>1.26</version>
+      <groupId>com.amihaiemil.web</groupId>
+      <artifactId>eo-yaml</artifactId>
+      <version>5.1.5</version>
     </dependency>
     <dependency>
       <groupId>com.artipie</groupId>
