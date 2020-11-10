@@ -27,7 +27,6 @@ import com.amihaiemil.eoyaml.Yaml;
 import com.amihaiemil.eoyaml.YamlMapping;
 import com.amihaiemil.eoyaml.YamlMappingBuilder;
 import com.amihaiemil.eoyaml.YamlNode;
-import com.amihaiemil.eoyaml.YamlSequenceBuilder;
 import com.artipie.asto.Concatenation;
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
@@ -132,27 +131,9 @@ final class IndexYaml {
     private YamlMapping update(final YamlMapping index, final TgzArchive tgz) {
         final ChartYaml chart = tgz.chartYaml();
         final YamlMapping resyaml;
-        YamlMappingBuilder indexbldr = Yaml.createYamlMappingBuilder();
-        indexbldr = IndexYaml.addNodesExceptEntries(index, indexbldr);
         final Optional<YamlNode> entriesnode = IndexYaml.entriesNode(index);
         if (entriesnode.isPresent()) {
-            final YamlMapping entries = entriesnode.get().asMapping();
-            final Optional<YamlNode> chartnode = IndexYaml.chartNode(index, chart.name());
-            if (chartnode.isPresent()
-                && IndexYaml.notMatchVersion(chartnode.get(), chart.version())
-            ) {
-                resyaml = indexbldr.add(
-                    "entries",
-                    this.nodePresentVersionNotMatch(entries, tgz, chart)
-                ).build();
-            } else if (!chartnode.isPresent()) {
-                resyaml = indexbldr.add(
-                    "entries",
-                    this.nodeNotPresent(entries, tgz, chart)
-                ).build();
-            } else {
-                resyaml = index;
-            }
+            throw new UnsupportedOperationException();
         } else {
             YamlMappingBuilder tmp = Yaml.createYamlMappingBuilder();
             tmp = IndexYaml.addNodesExceptEntries(index, tmp);
@@ -167,60 +148,13 @@ final class IndexYaml {
             resyaml = tmp.build();
         }
         return resyaml;
-        // @checkstyle @checkstyle MethodBodyCommentsCheck (8 lines)
+        // @checkstyle MethodBodyCommentsCheck (8 lines)
         // @todo #32:30min Create a unit test for digest field
         //  One of the fields Index.yaml require is "digest" field. The test should make verify
         //  that field has been generated correctly.
         // @todo #32:30min Create a unit test for urls field
         //  One of the fields Index.yaml require is "urls" field. The test should make verify
         //  that field has been generated correctly.
-    }
-
-    /**
-     * Creates a new instance of `entries` node with a new version
-     * for the chart that is present.
-     * @param entries Previous values for `entries` node
-     * @param tgz Tgz archive
-     * @param chart Chart with yaml for a new version
-     * @return Yaml mapping of the new `entities` node.
-     */
-    private YamlMapping nodePresentVersionNotMatch(final YamlMapping entries, final TgzArchive tgz,
-        final ChartYaml chart) {
-        final YamlMappingBuilder chartbldr = this.newChart(tgz, chart);
-        YamlMappingBuilder newentries = Yaml.createYamlMappingBuilder();
-        for (final YamlNode node : entries.keys()) {
-            final String name = node.asScalar().value();
-            if (name.equals(chart.name())) {
-                YamlSequenceBuilder seq = Yaml.createYamlSequenceBuilder()
-                    .add(chartbldr.build());
-                for (final YamlNode vers : entries.value(name).asSequence()) {
-                    seq = seq.add(vers);
-                }
-                newentries = newentries.add(name, seq.build());
-            } else {
-                newentries = newentries.add(name, entries.value(name));
-            }
-        }
-        return newentries.build();
-    }
-
-    /**
-     * Creates a new instance of `entries` node for chart that
-     * is not present.
-     * @param entries Previous values for `entries` node
-     * @param tgz Tgz archive
-     * @param chart Chart with yaml for a new version
-     * @return Yaml mapping of the new `entities` node.
-     */
-    private YamlMapping nodeNotPresent(final YamlMapping entries, final TgzArchive tgz,
-        final ChartYaml chart) {
-        final YamlMappingBuilder chartbldr = this.newChart(tgz, chart);
-        YamlMappingBuilder newentries = Yaml.createYamlMappingBuilder();
-        for (final YamlNode node : entries.keys()) {
-            final String name = node.asScalar().value();
-            newentries = newentries.add(name, entries.value(name));
-        }
-        return newentries.add(chart.name(), chartbldr.build()).build();
     }
 
     /**
@@ -282,40 +216,4 @@ final class IndexYaml {
         return res;
     }
 
-    /**
-     * Search a specified chart name among entries from `entries` section.
-//     * @param entries Chart names from `entries` section
-     * @param indexyaml Source yaml
-     * @param chartname Searched chart name
-     * @return Optional for chart name.
-     */
-    private static Optional<YamlNode> chartNode(final YamlMapping indexyaml,
-        final String chartname) {
-        final Optional<YamlNode> res;
-        if (indexyaml.value("entries").asMapping()
-            .keys().stream()
-            .anyMatch(node -> node.asScalar().value().equals(chartname))
-        ) {
-            res = Optional.of(indexyaml.value("entries").asMapping().value(chartname));
-        } else {
-            res = Optional.empty();
-        }
-        return res;
-    }
-
-    /**
-     * Checks whether the specified version exists in the chart node.
-     * @param chartnode Chart node
-     * @param version Target version
-     * @return True - none chart's version matches a specified version, false - otherwise.
-     */
-    private static boolean notMatchVersion(final YamlNode chartnode, final String version) {
-        return chartnode.asSequence()
-            .values().stream()
-            .noneMatch(
-                node -> node.asMapping()
-                    .string("version")
-                    .equals(version)
-            );
-    }
 }
