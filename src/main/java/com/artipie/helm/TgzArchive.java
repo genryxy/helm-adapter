@@ -91,7 +91,7 @@ final class TgzArchive implements Content {
      */
     public String name() {
         final ChartYaml chart = this.chartYaml();
-        return chart.tgzName();
+        return String.format("%s-%s.tgz", chart.field("name"), chart.field("version"));
     }
 
     /**
