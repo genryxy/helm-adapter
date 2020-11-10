@@ -23,9 +23,9 @@
  */
 package com.artipie.helm;
 
+import com.amihaiemil.eoyaml.Yaml;
+import com.amihaiemil.eoyaml.YamlMapping;
 import io.reactivex.Single;
-import java.util.Map;
-import org.yaml.snakeyaml.Yaml;
 
 /**
  * The Chart.yaml file.
@@ -37,30 +37,56 @@ public class ChartYaml {
     /**
      * The Yaml.
      */
-    private final Single<Map<String, Object>> yaml;
+    private final Single<YamlMapping> yaml;
 
     /**
      * Ctor.
      * @param yaml The yaml.
      */
     public ChartYaml(final String yaml) {
-        this.yaml = Single.<Map<String, Object>>fromCallable(() -> new Yaml().load(yaml)).cache();
+        this.yaml = Single.fromCallable(
+            () -> Yaml.createYamlInput(yaml).readYamlMapping()
+        ).cache();
     }
 
     /**
-     * Obtain a field by name.
-     * @param name The name of field to read.
-     * @return A field the Yaml file.
+     * Obtain name from chart yaml.
+     * @return Name.
      */
-    public Object field(final String name) {
-        return this.yaml.blockingGet().get(name);
+    public String name() {
+        return this.string("name");
     }
 
     /**
-     * Return Chart.yaml fields.
-     * @return The fields.
+     * Obtain version from chart yaml.
+     * @return Version.
      */
-    public Map<String, Object> fields() {
+    public String version() {
+        return this.string("version");
+    }
+
+    /**
+     * Obtain archive name.
+     * @return How the archive should be named on the file system.
+     */
+    public String tgzName() {
+        return String.format("%s-%s.tgz", this.name(), this.version());
+    }
+
+    /**
+     * Return Chart.yaml as yaml mapping.
+     * @return YamlMapping.
+     */
+    public YamlMapping yamlMapping() {
         return this.yaml.blockingGet();
+    }
+
+    /**
+     * Obtain a string by name.
+     * @param name The name of field to read
+     * @return A string from the yaml file by specified name.
+     */
+    private String string(final String name) {
+        return this.yaml.blockingGet().string(name);
     }
 }
