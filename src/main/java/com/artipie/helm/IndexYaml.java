@@ -127,6 +127,12 @@ final class IndexYaml {
      * @param index The index yaml mappings.
      * @param tgz The archive.
      * @return Yaml mapping with updates.
+     * @todo #32:30min Create a unit test for digest field
+     *  One of the fields Index.yaml require is "digest" field. The test should make verify
+     *  that field has been generated correctly.
+     * @todo #32:30min Create a unit test for urls field
+     *  One of the fields Index.yaml require is "urls" field. The test should make verify
+     *  that field has been generated correctly.
      */
     private YamlMapping update(final YamlMapping index, final TgzArchive tgz) {
         final ChartYaml chart = tgz.chartYaml();
@@ -148,13 +154,6 @@ final class IndexYaml {
             resyaml = tmp.build();
         }
         return resyaml;
-        // @checkstyle MethodBodyCommentsCheck (8 lines)
-        // @todo #32:30min Create a unit test for digest field
-        //  One of the fields Index.yaml require is "digest" field. The test should make verify
-        //  that field has been generated correctly.
-        // @todo #32:30min Create a unit test for urls field
-        //  One of the fields Index.yaml require is "urls" field. The test should make verify
-        //  that field has been generated correctly.
     }
 
     /**
