@@ -85,14 +85,11 @@ final class IndexYamlTest {
                     .blockingGet()
             ).asciiString().toCompletableFuture().join()
         );
+        final Map<String, Object> entries = (Map<String, Object>) index.get("entries");
+        final ArrayList<LinkedHashMap<String, Object>> tomcat;
+        tomcat = (ArrayList<LinkedHashMap<String, Object>>) entries.get("tomcat");
         MatcherAssert.assertThat(
-            (String)
-                ((ArrayList<LinkedHashMap<String, Object>>)
-                    ((Map<String, Object>)
-                        index.get("entries"))
-                        .get("tomcat"))
-                    .get(0)
-                    .get("digest"),
+            tomcat.get(0).get("digest"),
             new IsEqual<>(
                 DigestUtils.sha256Hex(new TestResource(IndexYamlTest.TOMCAT).asBytes())
             )
