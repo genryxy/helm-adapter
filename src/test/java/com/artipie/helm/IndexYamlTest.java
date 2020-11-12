@@ -31,7 +31,6 @@ import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.rx.RxStorageWrapper;
 import com.artipie.asto.test.TestResource;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.hamcrest.MatcherAssert;
@@ -86,8 +85,8 @@ final class IndexYamlTest {
             ).asciiString().toCompletableFuture().join()
         );
         final Map<String, Object> entries = (Map<String, Object>) index.get("entries");
-        final ArrayList<LinkedHashMap<String, Object>> tomcat;
-        tomcat = (ArrayList<LinkedHashMap<String, Object>>) entries.get("tomcat");
+        final ArrayList<Map<String, Object>> tomcat;
+        tomcat = (ArrayList<Map<String, Object>>) entries.get("tomcat");
         MatcherAssert.assertThat(
             tomcat.get(0).get("digest"),
             new IsEqual<>(
