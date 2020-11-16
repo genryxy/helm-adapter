@@ -98,17 +98,17 @@ final class IndexYamlTest {
     @Test
     void addMetadataForNewChartInExistingIndex() {
         this.update(IndexYamlTest.ARK);
-        final List<Map<String, Object>> ark = this.entries("ark");
+        final Map<String, Object> ark = this.entries("ark").get(0);
         final Map<String, Object> chart = this.chartYaml(IndexYamlTest.ARK);
         final int numgenfields = 3;
         MatcherAssert.assertThat(
             "Index.yaml has required number of keys",
-            ark.get(0).size(),
+            ark.size(),
             new IsEqual<>(chart.size() + numgenfields)
         );
         MatcherAssert.assertThat(
             "Keys have correct values",
-            ark.get(0),
+            ark,
             new AllOf<>(
                 Arrays.asList(
                     this.matcher("appVersion", chart),
