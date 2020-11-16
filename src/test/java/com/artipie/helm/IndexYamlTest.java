@@ -30,10 +30,15 @@ import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.rx.RxStorageWrapper;
 import com.artipie.asto.test.TestResource;
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.hamcrest.Matcher;
 import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
+import org.hamcrest.core.AllOf;
 import org.hamcrest.core.IsEqual;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,7 +49,7 @@ import org.testcontainers.shaded.org.yaml.snakeyaml.Yaml;
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  * @since 0.2
  */
-@SuppressWarnings("unchecked")
+@SuppressWarnings({"PMD.AvoidDuplicateLiterals", "unchecked"})
 final class IndexYamlTest {
 
     /**
@@ -53,30 +58,97 @@ final class IndexYamlTest {
     private static final String TOMCAT = "tomcat-0.4.1.tgz";
 
     /**
+     * Chart name.
+     */
+    private static final String ARK = "ark-1.0.1.tgz";
+
+    /**
      * Base string.
      */
-    private static final String BASE = "helm";
+    private static final String BASE = "http://central.artipie.com/helm/";
 
     /**
      * Storage.
      */
     private Storage storage;
 
+    /**
+     * Index yaml file.
+     */
+    private IndexYaml yaml;
+
     @BeforeEach
     void init() {
         this.storage = new InMemoryStorage();
-        final IndexYaml yaml = new IndexYaml(this.storage, IndexYamlTest.BASE);
-        yaml.update(
-            new TgzArchive(
-                new PublisherAs(
-                    new Content.From(new TestResource(IndexYamlTest.TOMCAT).asBytes())
-                ).bytes()
-                    .toCompletableFuture().join()
-            )).blockingGet();
+        this.yaml = new IndexYaml(this.storage, IndexYamlTest.BASE);
+        this.update(IndexYamlTest.TOMCAT);
     }
 
     @Test
     void verifyDigestFromIndex() {
+        final List<Map<String, Object>> tomcat = this.entries("tomcat");
+        MatcherAssert.assertThat(
+            tomcat.get(0).get("digest"),
+            new IsEqual<>(
+                DigestUtils.sha256Hex(new TestResource(IndexYamlTest.TOMCAT).asBytes())
+            )
+        );
+    }
+
+    @Test
+    void addMetadataForNewChartInExistingIndex() {
+        this.update(IndexYamlTest.ARK);
+        final Map<String, Object> ark = this.entries("ark").get(0);
+        final Map<String, Object> chart = this.chartYaml(IndexYamlTest.ARK);
+        final int numgenfields = 3;
+        MatcherAssert.assertThat(
+            "Index.yaml has required number of keys",
+            ark.size(),
+            new IsEqual<>(chart.size() + numgenfields)
+        );
+        MatcherAssert.assertThat(
+            "Keys have correct values",
+            ark,
+            new AllOf<>(
+                Arrays.asList(
+                    this.matcher("appVersion", chart),
+                    this.matcher("apiVersion", chart),
+                    this.matcher("version", chart),
+                    this.matcher("name", chart),
+                    this.matcher("description", chart),
+                    this.matcher("home", chart),
+                    this.matcher("maintainers", chart),
+                    Matchers.hasEntry(
+                        "urls", Collections.singletonList(
+                            String.format("%s%s", IndexYamlTest.BASE, IndexYamlTest.ARK)
+                        )
+                    ),
+                    Matchers.hasEntry(
+                        "sources", Collections.singletonList("https://github.com/heptio/ark")
+                    ),
+                    Matchers.hasKey("created"),
+                    Matchers.hasKey("digest")
+                )
+            )
+        );
+    }
+
+    private Matcher<Map<? extends String, ?>> matcher(final String key,
+        final Map<String, Object> chart) {
+        return Matchers.hasEntry(key, chart.get(key));
+    }
+
+    private Map<String, Object> chartYaml(final String file) {
+        return new TgzArchive(
+            new PublisherAs(
+                new Content.From(new TestResource(file).asBytes())
+            ).bytes()
+            .toCompletableFuture().join()
+        ).chartYaml()
+        .fields();
+    }
+
+    private List<Map<String, Object>> entries(final String name) {
         final Map<String, Object> index = new Yaml().load(
             new PublisherAs(
                 new RxStorageWrapper(this.storage)
@@ -85,13 +157,17 @@ final class IndexYamlTest {
             ).asciiString().toCompletableFuture().join()
         );
         final Map<String, Object> entries = (Map<String, Object>) index.get("entries");
-        final ArrayList<Map<String, Object>> tomcat;
-        tomcat = (ArrayList<Map<String, Object>>) entries.get("tomcat");
-        MatcherAssert.assertThat(
-            tomcat.get(0).get("digest"),
-            new IsEqual<>(
-                DigestUtils.sha256Hex(new TestResource(IndexYamlTest.TOMCAT).asBytes())
+        return (List<Map<String, Object>>) entries.get(name);
+    }
+
+    private void update(final String chart) {
+        this.yaml.update(
+            new TgzArchive(
+                new PublisherAs(
+                    new Content.From(new TestResource(chart).asBytes())
+                ).bytes()
+                .toCompletableFuture().join()
             )
-        );
+        ).blockingGet();
     }
 }
