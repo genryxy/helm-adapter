@@ -100,15 +100,15 @@ final class IndexYamlTest {
         final String tomcat = "tomcat";
         final Map<String, Object> old = this.entries(tomcat).get(0);
         this.update(IndexYamlTest.TOMCAT);
-        final Map<String, Object> updt = this.entries(tomcat).get(0);
+        final List<Map<String, Object>> updt = this.entries(tomcat);
         MatcherAssert.assertThat(
             "New version was not added",
-            this.entries(tomcat).size(),
+            updt.size(),
             new IsEqual<>(1)
         );
         MatcherAssert.assertThat(
             "Metadata was not changed",
-            old.equals(updt),
+            old.equals(updt.get(0)),
             new IsEqual<>(true)
         );
     }
@@ -123,10 +123,9 @@ final class IndexYamlTest {
             entries.size(),
             new IsEqual<>(2)
         );
-        final String[] versions = {
-            (String) entries.get(0).get("version"),
-            (String) entries.get(1).get("version"),
-        };
+        final String[] versions = entries.stream()
+             .map(entry -> (String) entry.get("version"))
+             .toArray(String[]::new);
         MatcherAssert.assertThat(
             "Contains both versions",
             versions,
