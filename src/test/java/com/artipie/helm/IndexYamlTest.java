@@ -96,6 +96,44 @@ final class IndexYamlTest {
     }
 
     @Test
+    void notChangeForSameChartWithSameVersion() {
+        final String tomcat = "tomcat";
+        final Map<String, Object> old = this.entries(tomcat).get(0);
+        this.update(IndexYamlTest.TOMCAT);
+        final List<Map<String, Object>> updt = this.entries(tomcat);
+        MatcherAssert.assertThat(
+            "New version was not added",
+            updt.size(),
+            new IsEqual<>(1)
+        );
+        MatcherAssert.assertThat(
+            "Metadata was not changed",
+            old.equals(updt.get(0)),
+            new IsEqual<>(true)
+        );
+    }
+
+    @Test
+    void addMetadataForSameChartWithNewVersion() {
+        this.update(IndexYamlTest.ARK);
+        this.update("ark-1.2.0.tgz");
+        final List<Map<String, Object>> entries = this.entries("ark");
+        MatcherAssert.assertThat(
+            "New version was added",
+            entries.size(),
+            new IsEqual<>(2)
+        );
+        final String[] versions = entries.stream()
+            .map(entry -> (String) entry.get("version"))
+            .toArray(String[]::new);
+        MatcherAssert.assertThat(
+            "Contains both versions",
+            versions,
+            Matchers.arrayContainingInAnyOrder("1.0.1", "1.2.0")
+        );
+    }
+
+    @Test
     void addMetadataForNewChartInExistingIndex() {
         this.update(IndexYamlTest.ARK);
         final Map<String, Object> ark = this.entries("ark").get(0);
