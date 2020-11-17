@@ -124,8 +124,8 @@ final class IndexYamlTest {
             new IsEqual<>(2)
         );
         final String[] versions = entries.stream()
-             .map(entry -> (String) entry.get("version"))
-             .toArray(String[]::new);
+            .map(entry -> (String) entry.get("version"))
+            .toArray(String[]::new);
         MatcherAssert.assertThat(
             "Contains both versions",
             versions,
