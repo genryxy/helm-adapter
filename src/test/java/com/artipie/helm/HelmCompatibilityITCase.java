@@ -27,6 +27,8 @@ import com.artipie.asto.Storage;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
 import com.artipie.http.auth.Authentication;
+import com.artipie.http.auth.JoinedPermissions;
+import com.artipie.http.auth.Permissions;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.vertx.VertxSliceServer;
 import com.google.common.io.ByteStreams;
@@ -84,7 +86,7 @@ public final class HelmCompatibilityITCase {
     private Vertx vertx;
 
     /**
-     * The helm.
+     * The helm container.
      */
     private HelmCompatibilityITCase.HelmContainer cntn;
 
@@ -135,12 +137,12 @@ public final class HelmCompatibilityITCase {
         MatcherAssert.assertThat(
             "Chart repository was added",
             this.helmRepoAdd(anonymous, "chartrepo"),
-            new IsEqual<>(0)
+            new IsEqual<>(true)
         );
         MatcherAssert.assertThat(
             "helm repo update is successful",
             exec("helm", "repo", "update"),
-            new IsEqual<>(0)
+            new IsEqual<>(true)
         );
     }
 
@@ -159,8 +161,10 @@ public final class HelmCompatibilityITCase {
                 new HelmSlice(
                     fls,
                     this.turl,
-                    (identity, perm) -> HelmCompatibilityITCase.USER.equals(identity.name())
-                        && ("download".equals(perm) || "upload".equals(perm)),
+                    new JoinedPermissions(
+                        new Permissions.Single(HelmCompatibilityITCase.USER, "download"),
+                        new Permissions.Single(HelmCompatibilityITCase.USER, "upload")
+                    ),
                     new Authentication.Single(
                         HelmCompatibilityITCase.USER, HelmCompatibilityITCase.PSWD
                     )
@@ -176,7 +180,7 @@ public final class HelmCompatibilityITCase {
         this.cntn.start();
     }
 
-    private int helmRepoAdd(final boolean anonymous, final String chartrepo) throws Exception {
+    private boolean helmRepoAdd(final boolean anonymous, final String chartrepo) throws Exception {
         final List<String> cmdlst = new ArrayList<>(
             Arrays.asList("helm", "repo", "add", chartrepo, this.turl)
         );
@@ -219,7 +223,7 @@ public final class HelmCompatibilityITCase {
         return conn;
     }
 
-    private int exec(final String... cmd) throws IOException, InterruptedException {
+    private boolean exec(final String... cmd) throws IOException, InterruptedException {
         final String joined = String.join(" ", cmd);
         LoggerFactory.getLogger(HelmSliceIT.class).info("Executing:\n{}", joined);
         final Container.ExecResult exec = this.cntn.execInContainer(cmd);
@@ -230,7 +234,7 @@ public final class HelmCompatibilityITCase {
             LoggerFactory.getLogger(HelmSliceIT.class)
                 .error("'{}' failed with {} code", joined, code);
         }
-        return code;
+        return code == 0;
     }
 
     /**
