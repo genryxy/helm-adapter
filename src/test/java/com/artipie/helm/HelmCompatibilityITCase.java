@@ -61,7 +61,7 @@ import org.testcontainers.containers.GenericContainer;
  */
 @DisabledIfSystemProperty(named = "os.name", matches = "Windows.*")
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
-public final class HelmITCase {
+public final class HelmCompatibilityITCase {
 
     /**
      * Chart name.
@@ -86,7 +86,7 @@ public final class HelmITCase {
     /**
      * The helm.
      */
-    private HelmITCase.HelmContainer cntn;
+    private HelmCompatibilityITCase.HelmContainer cntn;
 
     /**
      * The turl.
@@ -159,14 +159,16 @@ public final class HelmITCase {
                 new HelmSlice(
                     fls,
                     this.turl,
-                    (identity, perm) -> HelmITCase.USER.equals(identity.name())
+                    (identity, perm) -> HelmCompatibilityITCase.USER.equals(identity.name())
                         && ("download".equals(perm) || "upload".equals(perm)),
-                    new Authentication.Single(HelmITCase.USER, HelmITCase.PSWD)
+                    new Authentication.Single(
+                        HelmCompatibilityITCase.USER, HelmCompatibilityITCase.PSWD
+                    )
                 ),
                 this.port
             );
         }
-        this.cntn = new HelmITCase.HelmContainer()
+        this.cntn = new HelmCompatibilityITCase.HelmContainer()
             .withCreateContainerCmdModifier(
                 cmd -> cmd.withEntrypoint("/bin/sh").withCmd("-c", "while sleep 3600; do :; done")
             );
@@ -180,9 +182,9 @@ public final class HelmITCase {
         );
         if (!anonymous) {
             cmdlst.add("--username");
-            cmdlst.add(HelmITCase.USER);
+            cmdlst.add(HelmCompatibilityITCase.USER);
             cmdlst.add("--password");
-            cmdlst.add(HelmITCase.PSWD);
+            cmdlst.add(HelmCompatibilityITCase.PSWD);
         }
         final String[] cmdarr = cmdlst.toArray(new String[0]);
         return this.exec(cmdarr);
@@ -191,7 +193,7 @@ public final class HelmITCase {
     private HttpURLConnection putToLocalhost(final boolean anonymous) throws IOException {
         final HttpURLConnection conn = (HttpURLConnection) new URL(
             String.format(
-                "http://localhost:%d/%s", this.port, HelmITCase.CHART
+                "http://localhost:%d/%s", this.port, HelmCompatibilityITCase.CHART
             )
         ).openConnection();
         conn.setRequestMethod("PUT");
@@ -202,7 +204,7 @@ public final class HelmITCase {
                     @Override
                     protected PasswordAuthentication getPasswordAuthentication() {
                         return new PasswordAuthentication(
-                            HelmITCase.USER, HelmITCase.PSWD.toCharArray()
+                            HelmCompatibilityITCase.USER, HelmCompatibilityITCase.PSWD.toCharArray()
                         );
                     }
                 }
@@ -210,7 +212,7 @@ public final class HelmITCase {
         }
         ByteStreams.copy(
             new ByteArrayInputStream(
-                new TestResource(HelmITCase.CHART).asBytes()
+                new TestResource(HelmCompatibilityITCase.CHART).asBytes()
             ),
             conn.getOutputStream()
         );
@@ -248,7 +250,7 @@ public final class HelmITCase {
      * @since 0.2
      */
     private static class HelmContainer extends
-        GenericContainer<HelmITCase.HelmContainer> {
+        GenericContainer<HelmCompatibilityITCase.HelmContainer> {
         HelmContainer() {
             super("alpine/helm:2.12.1");
         }
