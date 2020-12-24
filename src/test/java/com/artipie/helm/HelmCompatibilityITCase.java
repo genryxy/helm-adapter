@@ -93,7 +93,7 @@ public final class HelmCompatibilityITCase {
     /**
      * The turl.
      */
-    private String turl;
+    private String url;
 
     /**
      * The server.
@@ -126,14 +126,22 @@ public final class HelmCompatibilityITCase {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void helmRepoAddAndUpdateWorks(final boolean anonymous) throws Exception {
-        this.init(anonymous);
+        final String hostport = this.init(anonymous);
         this.con = this.putToLocalhost(anonymous);
         MatcherAssert.assertThat(
             "Response status is 200",
             this.con.getResponseCode(),
             new IsEqual<>(Integer.parseInt(RsStatus.OK.code()))
         );
-        exec("helm", "init", "--client-only", "--debug");
+        exec("helm", "init",
+            "--stable-repo-url",
+            String.format(
+                "http://%s:%s@%s",
+                HelmCompatibilityITCase.USER, HelmCompatibilityITCase.PSWD,
+                hostport
+            ),
+            "--client-only", "--debug"
+        );
         MatcherAssert.assertThat(
             "Chart repository was added",
             this.helmRepoAdd(anonymous, "chartrepo"),
@@ -146,21 +154,22 @@ public final class HelmCompatibilityITCase {
         );
     }
 
-    private void init(final boolean anonymous) throws IOException {
+    private String init(final boolean anonymous) throws IOException {
         final Storage fls = new InMemoryStorage();
         this.port = rndPort();
-        this.turl = String.format("http://host.testcontainers.internal:%d/", this.port);
+        final String hostport = String.format("host.testcontainers.internal:%d/", this.port);
+        this.url = String.format("http://%s", hostport);
         Testcontainers.exposeHostPorts(this.port);
         if (anonymous) {
             this.server = new VertxSliceServer(
-                this.vertx, new HelmSlice(fls, this.turl), this.port
+                this.vertx, new HelmSlice(fls, this.url), this.port
             );
         } else {
             this.server = new VertxSliceServer(
                 this.vertx,
                 new HelmSlice(
                     fls,
-                    this.turl,
+                    this.url,
                     new JoinedPermissions(
                         new Permissions.Single(HelmCompatibilityITCase.USER, "download"),
                         new Permissions.Single(HelmCompatibilityITCase.USER, "upload")
@@ -178,11 +187,12 @@ public final class HelmCompatibilityITCase {
             );
         this.server.start();
         this.cntn.start();
+        return hostport;
     }
 
     private boolean helmRepoAdd(final boolean anonymous, final String chartrepo) throws Exception {
         final List<String> cmdlst = new ArrayList<>(
-            Arrays.asList("helm", "repo", "add", chartrepo, this.turl)
+            Arrays.asList("helm", "repo", "add", chartrepo, this.url)
         );
         if (!anonymous) {
             cmdlst.add("--username");
