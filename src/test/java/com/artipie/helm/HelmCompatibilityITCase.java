@@ -133,7 +133,8 @@ public final class HelmCompatibilityITCase {
             this.con.getResponseCode(),
             new IsEqual<>(Integer.parseInt(RsStatus.OK.code()))
         );
-        exec("helm", "init",
+        exec(
+            "helm", "init",
             "--stable-repo-url",
             String.format(
                 "http://%s:%s@%s",
