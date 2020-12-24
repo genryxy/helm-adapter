@@ -91,7 +91,7 @@ public final class HelmCompatibilityITCase {
     private HelmCompatibilityITCase.HelmContainer cntn;
 
     /**
-     * The turl.
+     * Test container url.
      */
     private String url;
 
