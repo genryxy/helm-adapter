@@ -30,6 +30,9 @@ import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.rx.RxStorageWrapper;
 import com.artipie.asto.test.TestResource;
+import com.artipie.helm.metadata.IndexYaml;
+import com.artipie.helm.metadata.IndexYamlMapping;
+import java.io.FileNotFoundException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -40,16 +43,16 @@ import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.hamcrest.core.AllOf;
 import org.hamcrest.core.IsEqual;
+import org.hamcrest.core.IsInstanceOf;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.shaded.org.yaml.snakeyaml.Yaml;
 
 /**
  * Test case for {@link IndexYaml}.
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  * @since 0.2
  */
-@SuppressWarnings({"PMD.AvoidDuplicateLiterals", "unchecked"})
+@SuppressWarnings({"PMD.AvoidDuplicateLiterals", "PMD.TooManyMethods"})
 final class IndexYamlTest {
 
     /**
@@ -81,12 +84,12 @@ final class IndexYamlTest {
     void init() {
         this.storage = new InMemoryStorage();
         this.yaml = new IndexYaml(this.storage, IndexYamlTest.BASE);
-        this.update(IndexYamlTest.TOMCAT);
     }
 
     @Test
     void verifyDigestFromIndex() {
-        final List<Map<String, Object>> tomcat = this.entries("tomcat");
+        this.update(IndexYamlTest.TOMCAT);
+        final List<Map<String, Object>> tomcat = this.mapping().entriesByChart("tomcat");
         MatcherAssert.assertThat(
             tomcat.get(0).get("digest"),
             new IsEqual<>(
@@ -97,10 +100,11 @@ final class IndexYamlTest {
 
     @Test
     void notChangeForSameChartWithSameVersion() {
-        final String tomcat = "tomcat";
-        final Map<String, Object> old = this.entries(tomcat).get(0);
         this.update(IndexYamlTest.TOMCAT);
-        final List<Map<String, Object>> updt = this.entries(tomcat);
+        final String tomcat = "tomcat";
+        final Map<String, Object> old = this.mapping().entriesByChart(tomcat).get(0);
+        this.update(IndexYamlTest.TOMCAT);
+        final List<Map<String, Object>> updt = this.mapping().entriesByChart(tomcat);
         MatcherAssert.assertThat(
             "New version was not added",
             updt.size(),
@@ -115,9 +119,10 @@ final class IndexYamlTest {
 
     @Test
     void addMetadataForSameChartWithNewVersion() {
+        this.update(IndexYamlTest.TOMCAT);
         this.update(IndexYamlTest.ARK);
         this.update("ark-1.2.0.tgz");
-        final List<Map<String, Object>> entries = this.entries("ark");
+        final List<Map<String, Object>> entries = this.mapping().entriesByChart("ark");
         MatcherAssert.assertThat(
             "New version was added",
             entries.size(),
@@ -135,8 +140,9 @@ final class IndexYamlTest {
 
     @Test
     void addMetadataForNewChartInExistingIndex() {
+        this.update(IndexYamlTest.TOMCAT);
         this.update(IndexYamlTest.ARK);
-        final Map<String, Object> ark = this.entries("ark").get(0);
+        final Map<String, Object> ark = this.mapping().entriesByChart("ark").get(0);
         final Map<String, Object> chart = this.chartYaml(IndexYamlTest.ARK);
         final int numgenfields = 3;
         MatcherAssert.assertThat(
@@ -171,6 +177,34 @@ final class IndexYamlTest {
         );
     }
 
+    @Test
+    void deleteChartByNameFromIndexYaml() {
+        new TestResource("index.yaml").saveTo(this.storage);
+        new IndexYaml(this.storage, IndexYamlTest.BASE).deleteByName("ark").blockingGet();
+        final IndexYamlMapping mapping = this.mapping();
+        MatcherAssert.assertThat(
+            "Number of charts is correct",
+            mapping.entries().size(),
+            new IsEqual<>(1)
+        );
+        MatcherAssert.assertThat(
+            mapping.entries().containsKey("tomcat"),
+            new IsEqual<>(true)
+        );
+    }
+
+    @Test
+    void failsToDeleteChartByNameWhenIndexYamlAbsent() {
+        MatcherAssert.assertThat(
+            new IndexYaml(this.storage, IndexYamlTest.BASE)
+                .deleteByName("ark")
+                .blockingGet()
+                .getCause()
+                .getCause(),
+            new IsInstanceOf(FileNotFoundException.class)
+        );
+    }
+
     private Matcher<Map<? extends String, ?>> matcher(final String key,
         final Map<String, Object> chart) {
         return Matchers.hasEntry(key, chart.get(key));
@@ -186,16 +220,15 @@ final class IndexYamlTest {
         .fields();
     }
 
-    private List<Map<String, Object>> entries(final String name) {
-        final Map<String, Object> index = new Yaml().load(
+    private IndexYamlMapping mapping() {
+        return new IndexYamlMapping(
             new PublisherAs(
                 new RxStorageWrapper(this.storage)
                     .value(new Key.From("index.yaml"))
                     .blockingGet()
-            ).asciiString().toCompletableFuture().join()
+            ).asciiString()
+            .toCompletableFuture().join()
         );
-        final Map<String, Object> entries = (Map<String, Object>) index.get("entries");
-        return (List<Map<String, Object>>) entries.get(name);
     }
 
     private void update(final String chart) {

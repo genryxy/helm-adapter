@@ -57,7 +57,7 @@ import org.reactivestreams.Subscriber;
     "PMD.AvoidBranchingStatementAsLastInLoop",
     "PMD.AssignmentInOperand"
 })
-final class TgzArchive implements Content {
+public final class TgzArchive implements Content {
 
     /**
      * The eight kb.
@@ -91,7 +91,7 @@ final class TgzArchive implements Content {
      */
     public String name() {
         final ChartYaml chart = this.chartYaml();
-        return String.format("%s-%s.tgz", chart.field("name"), chart.field("version"));
+        return String.format("%s-%s.tgz", chart.name(), chart.version());
     }
 
     /**

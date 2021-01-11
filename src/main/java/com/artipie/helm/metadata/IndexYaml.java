@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package com.artipie.helm;
+package com.artipie.helm.metadata;
 
 import com.artipie.asto.Concatenation;
 import com.artipie.asto.Content;
@@ -30,8 +30,11 @@ import com.artipie.asto.Remaining;
 import com.artipie.asto.Storage;
 import com.artipie.asto.rx.RxStorage;
 import com.artipie.asto.rx.RxStorageWrapper;
+import com.artipie.helm.ChartYaml;
+import com.artipie.helm.TgzArchive;
 import io.reactivex.Completable;
 import io.reactivex.Single;
+import java.io.FileNotFoundException;
 import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -47,18 +50,13 @@ import org.yaml.snakeyaml.Yaml;
  *
  * @since 0.2
  * @checkstyle MethodBodyCommentsCheck (500 lines)
- * @checkstyle NonStaticMethodCheck (500 lines)
+ * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
-@SuppressWarnings({"PMD.UnusedFormalParameter",
-    "PMD.UnusedPrivateField",
-    "PMD.ArrayIsStoredDirectly",
-    "PMD.UnusedFormalParameter",
-    "PMD.AvoidDuplicateLiterals",
-    "PMD.SingularField"})
-final class IndexYaml {
+@SuppressWarnings("PMD.AvoidDuplicateLiterals")
+public final class IndexYaml {
 
     /**
-     * The index.yalm string.
+     * The index.yaml string.
      */
     private static final Key INDEX_YAML = new Key.From("index.yaml");
 
@@ -83,7 +81,7 @@ final class IndexYaml {
      * @param storage The storage.
      * @param base The base path for urls field.
      */
-    IndexYaml(final Storage storage, final String base) {
+    public IndexYaml(final Storage storage, final String base) {
         this.storage = storage;
         this.base = base;
     }
@@ -130,6 +128,59 @@ final class IndexYaml {
     }
 
     /**
+     * Delete from index.yaml file specified chart.
+     * @param name Chart name
+     * @return The operation result.
+     * @todo #84:30min Remove duplicating code.
+     *  There is duplicating code in this method and in `IndexYaml#update`. It is
+     *  necessary to remove this duplication.
+     */
+    public Completable deleteByName(final String name) {
+        final RxStorage rxs = new RxStorageWrapper(this.storage);
+        return rxs.exists(IndexYaml.INDEX_YAML)
+            .flatMap(
+                exist -> {
+                    final Single<Map<String, Object>>  result;
+                    if (exist) {
+                        result =
+                            rxs.value(IndexYaml.INDEX_YAML)
+                            .flatMap(content -> new Concatenation(content).single())
+                            .map(buf -> new String(new Remaining(buf).bytes()))
+                            .map(content -> new Yaml().load(content));
+                    } else {
+                        result = Single.error(
+                            new FileNotFoundException(
+                                String.format("File '%s' is not found", IndexYaml.INDEX_YAML)
+                            )
+                        );
+                    }
+                    return result;
+                }
+            ).doOnError(
+                throwable -> {
+                    throw new IllegalStateException(throwable);
+                }
+            ).map(
+                idx -> {
+                    new IndexYamlMapping(idx).entries().remove(name);
+                    return idx;
+                }
+            ).flatMapCompletable(
+                idx -> {
+                    final DumperOptions options = new DumperOptions();
+                    options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+                    options.setPrettyFlow(true);
+                    return rxs.save(
+                        IndexYaml.INDEX_YAML,
+                        new Content.From(
+                            new Yaml(options).dump(idx).getBytes(StandardCharsets.UTF_8)
+                        )
+                    );
+                }
+            );
+    }
+
+    /**
      * Return an empty Index mappings.
      * @return The empty yaml mappings.
      */
@@ -149,15 +200,14 @@ final class IndexYaml {
     @SuppressWarnings("unchecked")
     private void update(final Map<String, Object> index, final TgzArchive tgz) {
         final ChartYaml chart = tgz.chartYaml();
-        final String version = "version";
-        final Map<String, Object> entries = (Map<String, Object>) index.get("entries");
-        final String name = (String) chart.field("name");
+        final Map<String, Object> entries = new IndexYamlMapping(index).entries();
+        final String name = chart.name();
         if (!entries.containsKey(name)) {
             entries.put(name, new ArrayList<Map<String, Object>>(0));
         }
         final ArrayList<Map<String, Object>> versions = (ArrayList<Map<String, Object>>)
             entries.get(name);
-        if (versions.stream().noneMatch(map -> map.get(version).equals(chart.field(version)))) {
+        if (versions.stream().noneMatch(map -> map.get("version").equals(chart.version()))) {
             final Map<String, Object> newver = new HashMap<>();
             newver.put("created", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER));
             newver.put(
