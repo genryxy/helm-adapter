@@ -159,6 +159,7 @@ public final class IndexYaml {
 
     /**
      * Generate exception.
+     * @param <T> Ignore
      * @return Not found exception.
      */
     private static <T> Single<T> notFoundException() {
