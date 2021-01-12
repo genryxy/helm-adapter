@@ -156,17 +156,9 @@ public final class IndexYaml {
                     }
                     return result;
                 }
-            ).doOnError(
-                throwable -> {
-                    throw new IllegalStateException(throwable);
-                }
-            ).map(
-                idx -> {
-                    new IndexYamlMapping(idx).entries().remove(name);
-                    return idx;
-                }
             ).flatMapCompletable(
                 idx -> {
+                    new IndexYamlMapping(idx).entries().remove(name);
                     final DumperOptions options = new DumperOptions();
                     options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
                     options.setPrettyFlow(true);

@@ -32,6 +32,7 @@ import com.artipie.asto.rx.RxStorageWrapper;
 import com.artipie.asto.test.TestResource;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
+import com.google.common.base.Throwables;
 import java.io.FileNotFoundException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -188,6 +189,7 @@ final class IndexYamlTest {
             new IsEqual<>(1)
         );
         MatcherAssert.assertThat(
+            "Correct chart was deleted",
             mapping.entries().containsKey("tomcat"),
             new IsEqual<>(true)
         );
@@ -196,11 +198,11 @@ final class IndexYamlTest {
     @Test
     void failsToDeleteChartByNameWhenIndexYamlAbsent() {
         MatcherAssert.assertThat(
-            new IndexYaml(this.storage, IndexYamlTest.BASE)
+            Throwables.getRootCause(
+                new IndexYaml(this.storage, IndexYamlTest.BASE)
                 .deleteByName("ark")
                 .blockingGet()
-                .getCause()
-                .getCause(),
+            ),
             new IsInstanceOf(FileNotFoundException.class)
         );
     }
