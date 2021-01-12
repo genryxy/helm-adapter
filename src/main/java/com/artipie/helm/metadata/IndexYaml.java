@@ -33,9 +33,7 @@ import com.artipie.asto.rx.RxStorageWrapper;
 import com.artipie.helm.ChartYaml;
 import com.artipie.helm.TgzArchive;
 import io.reactivex.Completable;
-import io.reactivex.CompletableSource;
 import io.reactivex.Single;
-import io.reactivex.functions.Function;
 import java.io.FileNotFoundException;
 import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
@@ -102,7 +100,7 @@ public final class IndexYaml {
                 this.update(idx, arch);
                 return idx;
             }
-        ).flatMapCompletable(new IndexToStorage());
+        ).flatMapCompletable(this::indexToStorage);
     }
 
     /**
@@ -122,7 +120,7 @@ public final class IndexYaml {
                 new IndexYamlMapping(idx).entries().remove(name);
                 return idx;
             }
-        ).flatMapCompletable(new IndexToStorage());
+        ).flatMapCompletable(this::indexToStorage);
     }
 
     /**
@@ -192,20 +190,18 @@ public final class IndexYaml {
 
     /**
      * Save index mapping to storage.
-     * @since 0.2
+     * @param index Mapping for `index.yaml`
+     * @return The operation result.
      */
-    private class IndexToStorage implements Function<Map<String, Object>, CompletableSource> {
-        @Override
-        public CompletableSource apply(final Map<String, Object> index) {
-            final DumperOptions options = new DumperOptions();
-            options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
-            options.setPrettyFlow(true);
-            return IndexYaml.this.storage.save(
-                IndexYaml.INDEX_YAML,
-                new Content.From(
-                    new Yaml(options).dump(index).getBytes(StandardCharsets.UTF_8)
-                )
-            );
-        }
+    private Completable indexToStorage(final Map<String, Object> index) {
+        final DumperOptions options = new DumperOptions();
+        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        options.setPrettyFlow(true);
+        return this.storage.save(
+            IndexYaml.INDEX_YAML,
+            new Content.From(
+                new Yaml(options).dump(index).getBytes(StandardCharsets.UTF_8)
+            )
+        );
     }
 }
