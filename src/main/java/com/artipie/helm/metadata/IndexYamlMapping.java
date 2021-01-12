@@ -72,4 +72,17 @@ public final class IndexYamlMapping {
     public List<Map<String, Object>> entriesByChart(final String chartname) {
         return (List<Map<String, Object>>) this.entries().get(chartname);
     }
+
+    /**
+     * Add info about a new chart to the existing mapping.
+     * @param name Chart name
+     * @param versions Collection with mapping for different versions of specified chart
+     */
+    public void addNewChart(final String name, final List<Map<String, Object>> versions) {
+        final Map<String, Object> entr = this.entries();
+        if (!entr.containsKey(name)) {
+            entr.put(name, versions);
+        }
+    }
+
 }
