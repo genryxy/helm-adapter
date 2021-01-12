@@ -236,10 +236,35 @@ final class IndexYamlTest {
         new IndexYaml(this.storage, IndexYamlTest.BASE)
             .deleteByNameAndVersion(chart, "0.4.1")
             .blockingGet();
+        MatcherAssert.assertThat(
+            this.mapping().entries().containsKey(chart),
+            new IsEqual<>(false)
+        );
+    }
+
+    @Test
+    void deleteAbsentChartByNameFromIndex() {
+        new TestResource("index.yaml").saveTo(this.storage);
+        new IndexYaml(this.storage, IndexYamlTest.BASE)
+            .deleteByName("absent")
+            .blockingGet();
+        MatcherAssert.assertThat(
+            this.mapping().entries().size(),
+            new IsEqual<>(2)
+        );
+    }
+
+    @Test
+    void deleteChartByNameAndAbsentVersionFromIndex() {
+        final String chart = "tomcat";
+        new TestResource("index.yaml").saveTo(this.storage);
+        new IndexYaml(this.storage, IndexYamlTest.BASE)
+            .deleteByNameAndVersion(chart, "0.0.0")
+            .blockingGet();
         final IndexYamlMapping mapping = this.mapping();
         MatcherAssert.assertThat(
-            mapping.entries().containsKey(chart),
-            new IsEqual<>(false)
+            mapping.entriesByChart(chart).size(),
+            new IsEqual<>(1)
         );
     }
 

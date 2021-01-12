@@ -161,7 +161,7 @@ public final class IndexYaml {
      * Generate exception.
      * @return Not found exception.
      */
-    private static Single<Map<String, Object>> notFoundException() {
+    private static <T> Single<T> notFoundException() {
         return Single.error(
             new FileNotFoundException(
                 String.format("File '%s' is not found", IndexYaml.INDEX_YAML)
