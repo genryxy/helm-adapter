@@ -43,6 +43,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
@@ -57,7 +58,7 @@ import org.yaml.snakeyaml.Yaml;
 public final class IndexYaml {
 
     /**
-     * The index.yaml string.
+     * The `index.yaml` string.
      */
     private static final Key INDEX_YAML = new Key.From("index.yaml");
 
@@ -104,22 +105,43 @@ public final class IndexYaml {
     }
 
     /**
-     * Delete from index.yaml file specified chart.
+     * Delete from `index.yaml` file specified chart.
+     * If the file `index.yaml` is missing an exception is thrown.
      * @param name Chart name
      * @return The operation result.
      */
     public Completable deleteByName(final String name) {
-        return this.indexFromStrg(
-            Single.error(
-                new FileNotFoundException(
-                    String.format("File '%s' is not found", IndexYaml.INDEX_YAML)
-                )
-            )
-        ).map(
-            idx -> {
-                new IndexYamlMapping(idx).entries().remove(name);
-                return idx;
-            }
+        return this.indexFromStrg(IndexYaml.notFoundException())
+            .map(
+                idx -> {
+                    new IndexYamlMapping(idx).entries().remove(name);
+                    return idx;
+                }
+            ).flatMapCompletable(this::indexToStorage);
+    }
+
+    /**
+     * Delete from `index.yaml` file specified chart with given version.
+     * If the file `index.yaml` is missing an exception is thrown.
+     * @param name Chart name
+     * @param version Version of the chart which should be deleted
+     * @return The operation result.
+     */
+    public Completable deleteByNameAndVersion(final String name, final String version) {
+        return this.indexFromStrg(IndexYaml.notFoundException())
+            .map(
+                idx -> {
+                    final IndexYamlMapping mapping = new IndexYamlMapping(idx);
+                    final List<Map<String, Object>> newvers;
+                    newvers = mapping.entriesByChart(name).stream()
+                        .filter(entry -> !entry.get("version").equals(version))
+                        .collect(Collectors.toList());
+                    mapping.entries().remove(name);
+                    if (!newvers.isEmpty()) {
+                        mapping.addNewChart(name, newvers);
+                    }
+                    return idx;
+                }
         ).flatMapCompletable(this::indexToStorage);
     }
 
@@ -133,6 +155,19 @@ public final class IndexYaml {
         res.put("entries", new HashMap<String, Object>(0));
         res.put("generated", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER));
         return res;
+    }
+
+    /**
+     * Generate exception.
+     * @param <T> Ignore
+     * @return Not found exception.
+     */
+    private static <T> Single<T> notFoundException() {
+        return Single.error(
+            new FileNotFoundException(
+                String.format("File '%s' is not found", IndexYaml.INDEX_YAML)
+            )
+        );
     }
 
     /**
