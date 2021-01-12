@@ -74,11 +74,11 @@ public final class IndexYamlMapping {
     }
 
     /**
-     * Add info about chart to existing mapping.
+     * Add info about a new chart to the existing mapping.
      * @param name Chart name
      * @param versions Collection with mapping for different versions of specified chart
      */
-    public void addChart(final String name, final List<Map<String, Object>> versions) {
+    public void addNewChart(final String name, final List<Map<String, Object>> versions) {
         final Map<String, Object> entr = this.entries();
         if (!entr.containsKey(name)) {
             entr.put(name, versions);

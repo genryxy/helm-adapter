@@ -144,7 +144,7 @@ public final class IndexYaml {
         final ChartYaml chart = tgz.chartYaml();
         final IndexYamlMapping mapping = new IndexYamlMapping(index);
         final String name = chart.name();
-        mapping.addChart(name, new ArrayList<Map<String, Object>>(0));
+        mapping.addNewChart(name, new ArrayList<Map<String, Object>>(0));
         final List<Map<String, Object>> versions = mapping.entriesByChart(name);
         if (versions.stream().noneMatch(map -> map.get("version").equals(chart.version()))) {
             final Map<String, Object> newver = new HashMap<>();
