@@ -207,6 +207,42 @@ final class IndexYamlTest {
         );
     }
 
+    @Test
+    void deleteChartByNameVersionWithManyVersionsFromIndex() {
+        final String chart = "ark";
+        new TestResource("index.yaml").saveTo(this.storage);
+        new IndexYaml(this.storage, IndexYamlTest.BASE)
+            .deleteByNameAndVersion(chart, "1.0.1")
+            .blockingGet();
+        final IndexYamlMapping mapping = this.mapping();
+        MatcherAssert.assertThat(
+            "Number of versions of chart is correct",
+            mapping.entriesByChart(chart).size(),
+            new IsEqual<>(1)
+        );
+        MatcherAssert.assertThat(
+            "Correct version of chart was deleted",
+            mapping.entriesByChart(chart)
+                .get(0)
+                .get("version"),
+            new IsEqual<>("1.2.0")
+        );
+    }
+
+    @Test
+    void deleteChartByNameVersionWithSingleVersionFromIndex() {
+        final String chart = "tomcat";
+        new TestResource("index.yaml").saveTo(this.storage);
+        new IndexYaml(this.storage, IndexYamlTest.BASE)
+            .deleteByNameAndVersion(chart, "0.4.1")
+            .blockingGet();
+        final IndexYamlMapping mapping = this.mapping();
+        MatcherAssert.assertThat(
+            mapping.entries().containsKey(chart),
+            new IsEqual<>(false)
+        );
+    }
+
     private Matcher<Map<? extends String, ?>> matcher(final String key,
         final Map<String, Object> chart) {
         return Matchers.hasEntry(key, chart.get(key));
