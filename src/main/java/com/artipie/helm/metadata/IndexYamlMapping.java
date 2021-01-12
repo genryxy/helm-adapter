@@ -21,62 +21,55 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package com.artipie.helm;
+package com.artipie.helm.metadata;
 
-import io.reactivex.Single;
+import java.util.List;
 import java.util.Map;
 import org.yaml.snakeyaml.Yaml;
 
 /**
- * The Chart.yaml file.
+ * Mapping for content from index.yaml file.
  *
  * @since 0.2
  */
-public class ChartYaml {
+@SuppressWarnings("unchecked")
+public final class IndexYamlMapping {
 
     /**
-     * The Yaml.
+     * Mapping for fields from index.yaml file.
      */
-    private final Single<Map<String, Object>> yaml;
+    private final Map<String, Object> mapping;
 
     /**
      * Ctor.
-     * @param yaml The yaml.
+     * @param yaml Index.yaml file
      */
-    public ChartYaml(final String yaml) {
-        this.yaml = Single.<Map<String, Object>>fromCallable(() -> new Yaml().load(yaml)).cache();
+    public IndexYamlMapping(final String yaml) {
+        this((Map<String, Object>) new Yaml().load(yaml));
     }
 
     /**
-     * Obtain a name of the chart.
-     * @return Name of the chart.
+     * Ctor.
+     * @param mapfromindex Mapping for fields from index.yaml file
      */
-    public String name() {
-        return (String) this.field("name");
+    public IndexYamlMapping(final Map<String, Object> mapfromindex) {
+        this.mapping = mapfromindex;
     }
 
     /**
-     * Obtain a version of the chart.
-     * @return Version of the chart.
+     * Obtain mapping for `entries`.
+     * @return Mapping for `entries`.
      */
-    public String version() {
-        return (String) this.field("version");
+    public Map<String, Object> entries() {
+        return (Map<String, Object>) this.mapping.get("entries");
     }
 
     /**
-     * Return Chart.yaml fields.
-     * @return The fields.
+     * Obtain mapping for specified chart from `entries`.
+     * @param chartname Chart name
+     * @return Mapping for specified chart from `entries`.
      */
-    public Map<String, Object> fields() {
-        return this.yaml.blockingGet();
-    }
-
-    /**
-     * Obtain a field by name.
-     * @param name The name of field to read.
-     * @return A field the Yaml file.
-     */
-    private Object field(final String name) {
-        return this.yaml.blockingGet().get(name);
+    public List<Map<String, Object>> entriesByChart(final String chartname) {
+        return (List<Map<String, Object>>) this.entries().get(chartname);
     }
 }
