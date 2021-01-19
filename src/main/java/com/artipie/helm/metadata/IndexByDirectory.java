@@ -68,32 +68,30 @@ public class IndexByDirectory {
      * @return Bytes of generated `index.yaml`, empty in case of absence of packaged charts.
      */
     public CompletionStage<Optional<byte[]>> value() {
-        final ConcurrentHashMap<String, List<Object>> entries = new ConcurrentHashMap<>();
-        return this.storage.list(this.directory).thenApply(
+        final Map<String, List<Object>> entries = new ConcurrentHashMap<>();
+        return this.storage.list(this.directory).thenCompose(
             keys -> CompletableFuture.allOf(
                 keys.stream()
-                .map(key -> key.string().substring(this.directory.string().length() + 1))
-                .map(key -> key.split("/"))
-                .filter(parts -> parts.length == 1 && parts[0].endsWith(".tgz"))
-                .map(parts -> parts[0])
-                .map(
-                    key -> this.storage.value(
-                        new Key.From(this.directory, key)
-                    ).thenApply(PublisherAs::new)
-                    .thenCompose(PublisherAs::bytes)
-                    .thenApply(TgzArchive::new)
-                    .thenApply(TgzArchive::chartYaml)
-                    .thenAcceptBoth(
-                        this.index(),
-                        (chart, index) -> IndexByDirectory.addEntry(chart, index, entries)
-                    )
-                ).map(CompletableFuture::join)
-                .map(CompletableFuture::completedFuture)
-                .toArray(CompletableFuture[]::new)
-            )
-        ).thenApply(nothing -> new IndexYamlMapping())
-        .thenApply(index -> index.addEntries(entries))
-        .thenApply(IndexYamlMapping::toBytes);
+                    .map(key -> key.string().substring(this.directory.string().length() + 1))
+                    .map(key -> key.split("/"))
+                    .filter(parts -> parts.length == 1 && parts[0].endsWith(".tgz"))
+                    .map(parts -> parts[0])
+                    .map(
+                        key -> this.storage.value(
+                            new Key.From(this.directory, key)
+                        ).thenApply(PublisherAs::new)
+                        .thenCompose(PublisherAs::bytes)
+                        .thenApply(TgzArchive::new)
+                        .thenApply(TgzArchive::chartYaml)
+                        .thenAcceptBoth(
+                            this.index(),
+                            (chart, index) -> IndexByDirectory.addEntry(chart, index, entries)
+                        )
+                    ).toArray(CompletableFuture[]::new)
+            ).thenApply(nothing -> new IndexYamlMapping())
+            .thenApply(index -> index.addEntries(entries))
+            .thenApply(IndexYamlMapping::toBytes)
+        );
     }
 
     /**
@@ -120,12 +118,14 @@ public class IndexByDirectory {
      * @param index Mapping for fields from `index.yaml` file
      * @param entries Existing entries
      */
-    private static void addEntry(final ChartYaml chart, final IndexYamlMapping index,
-        final ConcurrentHashMap<String, List<Object>> entries
+    private static void addEntry(
+        final ChartYaml chart,
+        final IndexYamlMapping index,
+        final Map<String, List<Object>> entries
     ) {
-        final String name = chart.name();
-        final Map<String, Object> fromidx =
-            index.entriesByChart(name).stream()
+        synchronized (entries) {
+            final String name = chart.name();
+            final Map<String, Object> fromidx = index.entriesByChart(name).stream()
                 .filter(entry -> entry.get("version").equals(chart.version()))
                 .findFirst()
                 .orElseThrow(
@@ -135,10 +135,11 @@ public class IndexByDirectory {
                         )
                     )
                 );
-        if (entries.containsKey(name)) {
-            entries.get(name).add(fromidx);
-        } else {
-            entries.put(name, new ArrayList<>(Collections.singletonList(fromidx)));
+            if (entries.containsKey(name)) {
+                entries.get(name).add(fromidx);
+            } else {
+                entries.put(name, new ArrayList<>(Collections.singletonList(fromidx)));
+            }
         }
     }
 }
