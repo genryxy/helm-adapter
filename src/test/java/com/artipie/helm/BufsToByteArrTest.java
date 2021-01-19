@@ -24,7 +24,6 @@
 
 package com.artipie.helm;
 
-import com.artipie.helm.PushChartSlice;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
