@@ -23,22 +23,35 @@
  */
 package com.artipie.helm.metadata;
 
+import java.time.ZonedDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.yaml.snakeyaml.Yaml;
 
 /**
  * Mapping for content from index.yaml file.
- *
  * @since 0.2
  */
 @SuppressWarnings("unchecked")
 public final class IndexYamlMapping {
+    /**
+     * Entries.
+     */
+    private static final String ENTRS = "entries";
 
     /**
      * Mapping for fields from index.yaml file.
      */
     private final Map<String, Object> mapping;
+
+    /**
+     * Ctor.
+     */
+    public IndexYamlMapping() {
+        this("apiVersion: v1\nentries:\n");
+    }
 
     /**
      * Ctor.
@@ -61,7 +74,8 @@ public final class IndexYamlMapping {
      * @return Mapping for `entries`.
      */
     public Map<String, Object> entries() {
-        return (Map<String, Object>) this.mapping.get("entries");
+        this.mapping.computeIfAbsent(IndexYamlMapping.ENTRS, k -> new HashMap<>());
+        return (Map<String, Object>) this.mapping.get(IndexYamlMapping.ENTRS);
     }
 
     /**
@@ -85,4 +99,33 @@ public final class IndexYamlMapping {
         }
     }
 
+    /**
+     * Add entries to the existing mapping.
+     * @param entries Entries that should be added
+     * @return Itself.
+     */
+    public IndexYamlMapping addEntries(final Map<String, List<Object>> entries) {
+        this.mapping.put(IndexYamlMapping.ENTRS, entries);
+        return this;
+    }
+
+    /**
+     * Coverts mapping to bytes.
+     * @return Bytes if entries mapping contains any chart, empty otherwise.
+     */
+    public Optional<byte[]> toBytes() {
+        final Optional<byte[]> res;
+        if (this.entries().isEmpty()) {
+            res = Optional.empty();
+        } else {
+            this.mapping.put("generated", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER));
+            res = Optional.of(this.toString().getBytes());
+        }
+        return res;
+    }
+
+    @Override
+    public String toString() {
+        return new Yaml().dump(this.mapping);
+    }
 }

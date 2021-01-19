@@ -26,6 +26,7 @@ package com.artipie.helm;
 
 import com.artipie.asto.Remaining;
 import com.artipie.asto.Storage;
+import com.artipie.helm.TgzArchive;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.http.Response;
 import com.artipie.http.Slice;

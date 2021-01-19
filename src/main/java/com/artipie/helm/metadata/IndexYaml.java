@@ -58,15 +58,15 @@ import org.yaml.snakeyaml.Yaml;
 public final class IndexYaml {
 
     /**
-     * The `index.yaml` string.
-     */
-    private static final Key INDEX_YAML = new Key.From("index.yaml");
-
-    /**
      * An example of time this formatter produces: 2016-10-06T16:23:20.499814565-06:00 .
      */
-    private static final DateTimeFormatter TIME_FORMATTER =
+    public static final DateTimeFormatter TIME_FORMATTER =
         DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.nnnnnnnnnZZZZZ");
+
+    /**
+     * The `index.yaml` string.
+     */
+    public static final Key INDEX_YAML = new Key.From("index.yaml");
 
     /**
      * The RxStorage.
