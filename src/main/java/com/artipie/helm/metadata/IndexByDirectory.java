@@ -105,7 +105,9 @@ public class IndexByDirectory {
                     keys.stream()
                         .filter(key -> key.string().endsWith(IndexYaml.INDEX_YAML.string()))
                         .findFirst()
-                        .orElseThrow(IllegalStateException::new)
+                        .orElseThrow(
+                            () -> new IllegalStateException("'index.yaml' was not found in storage")
+                        )
                 ).thenApply(PublisherAs::new)
                 .thenCompose(PublisherAs::asciiString)
             )

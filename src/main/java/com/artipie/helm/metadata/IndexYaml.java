@@ -44,7 +44,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
 /**
@@ -229,13 +228,10 @@ public final class IndexYaml {
      * @return The operation result.
      */
     private Completable indexToStorage(final Map<String, Object> index) {
-        final DumperOptions options = new DumperOptions();
-        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
-        options.setPrettyFlow(true);
         return this.storage.save(
             IndexYaml.INDEX_YAML,
             new Content.From(
-                new Yaml(options).dump(index).getBytes(StandardCharsets.UTF_8)
+                new IndexYamlMapping(index).toString().getBytes(StandardCharsets.UTF_8)
             )
         );
     }
