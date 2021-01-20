@@ -73,7 +73,7 @@ public final class TgzArchive implements Content {
      * Ctor.
      * @param content The archive content.
      */
-    TgzArchive(final byte[] content) {
+    public TgzArchive(final byte[] content) {
         this.content = content;
     }
 
