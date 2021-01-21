@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
 /**
@@ -110,7 +111,7 @@ public final class IndexYamlMapping {
     }
 
     /**
-     * Coverts mapping to bytes.
+     * Converts mapping to bytes.
      * @return Bytes if entries mapping contains any chart, empty otherwise.
      */
     public Optional<byte[]> toBytes() {
@@ -126,6 +127,9 @@ public final class IndexYamlMapping {
 
     @Override
     public String toString() {
-        return new Yaml().dump(this.mapping);
+        final DumperOptions options = new DumperOptions();
+        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        options.setPrettyFlow(true);
+        return new Yaml(options).dump(this.mapping);
     }
 }

@@ -28,16 +28,21 @@ import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
+import com.google.common.base.Throwables;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.hamcrest.core.IsEqual;
+import org.hamcrest.core.IsInstanceOf;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
  * Test case for {@link IndexByDirectory}.
  * @since 0.2
+ * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
 final class IndexByDirectoryTest {
@@ -77,6 +82,53 @@ final class IndexByDirectoryTest {
             mapping.entriesByChart("ark").size(),
             new IsEqual<>(2)
         );
+    }
+
+    @Test
+    void returnsEmptyForEmptyDirectory() {
+        this.saveByPrefix(Key.ROOT, "index.yaml");
+        MatcherAssert.assertThat(
+            new IndexByDirectory(this.storage, new Key.From("my/prefix"))
+                .value()
+                .toCompletableFuture().join()
+                .isPresent(),
+            new IsEqual<>(false)
+        );
+    }
+
+    @Test
+    void throwsExceptionWhenIndexYamlNotFound() {
+        final Key dir = new Key.From("my/dir");
+        this.saveByPrefix(dir, "ark-1.0.1.tgz");
+        MatcherAssert.assertThat(
+            Throwables.getRootCause(this.throwable(dir).get()),
+            new IsInstanceOf(IllegalStateException.class)
+        );
+    }
+
+    @Test
+    void throwsExceptionWhenTgzIsMalformed() {
+        final Key dir = new Key.From("some/directory");
+        this.saveByPrefix(dir, "index.yaml");
+        this.storage.save(new Key.From(dir, "malformed-0.2.2.tgz"), Content.EMPTY).join();
+        MatcherAssert.assertThat(
+            Throwables.getRootCause(this.throwable(dir).get()).getMessage(),
+            new IsEqual<>("Input is not in the .gz format")
+        );
+    }
+
+    private AtomicReference<Throwable> throwable(final Key dir) {
+        final AtomicReference<Throwable> exc = new AtomicReference<>();
+        new IndexByDirectory(this.storage, dir)
+            .value()
+            .handle(
+                (res, thr) -> {
+                    exc.set(thr);
+                    return Optional.empty();
+                }
+            ).toCompletableFuture()
+            .join();
+        return exc;
     }
 
     private void saveByPrefix(final Key prefix, final String name) {
