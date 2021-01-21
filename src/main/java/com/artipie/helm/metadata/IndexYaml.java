@@ -137,7 +137,7 @@ public final class IndexYaml {
                         .collect(Collectors.toList());
                     mapping.entries().remove(name);
                     if (!newvers.isEmpty()) {
-                        mapping.addNewChart(name, newvers);
+                        mapping.addChartVersions(name, newvers);
                     }
                     return idx;
                 }
@@ -178,7 +178,6 @@ public final class IndexYaml {
         final ChartYaml chart = tgz.chartYaml();
         final IndexYamlMapping mapping = new IndexYamlMapping(index);
         final String name = chart.name();
-        mapping.addNewChart(name, new ArrayList<Map<String, Object>>(0));
         final List<Map<String, Object>> versions = mapping.entriesByChart(name);
         if (versions.stream().noneMatch(map -> map.get("version").equals(chart.version()))) {
             final Map<String, Object> newver = new HashMap<>();

@@ -28,8 +28,10 @@ import com.artipie.asto.Storage;
 import com.artipie.asto.ext.PublisherAs;
 import com.artipie.helm.ChartYaml;
 import com.artipie.helm.TgzArchive;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -54,13 +56,21 @@ public class IndexByDirectory {
     private final Key directory;
 
     /**
+     * Base url.
+     */
+    private final String baseurl;
+
+    /**
      * Ctor.
      * @param storage Storage
      * @param directory Directory from which packaged charts are taken
+     * @param baseurl Absolute url to the charts
      */
-    public IndexByDirectory(final Storage storage, final Key directory) {
+    public IndexByDirectory(final Storage storage, final Key directory,
+        final Optional<String> baseurl) {
         this.storage = storage;
         this.directory = directory;
+        this.baseurl = baseurl.orElse("");
     }
 
     /**
@@ -82,11 +92,7 @@ public class IndexByDirectory {
                         ).thenApply(PublisherAs::new)
                         .thenCompose(PublisherAs::bytes)
                         .thenApply(TgzArchive::new)
-                        .thenApply(TgzArchive::chartYaml)
-                        .thenAcceptBoth(
-                            this.index(),
-                            (chart, index) -> IndexByDirectory.addEntry(chart, index, entries)
-                        )
+                        .thenAccept(tgz -> this.addEntry(tgz, entries))
                     ).toArray(CompletableFuture[]::new)
             ).thenApply(nothing -> new IndexYamlMapping())
             .thenApply(index -> index.addEntries(entries))
@@ -95,52 +101,32 @@ public class IndexByDirectory {
     }
 
     /**
-     * Obtains content of `index.yaml` which is generated automatically.
-     * @return Mapping for fields from `index.yaml` file.
-     */
-    private CompletionStage<IndexYamlMapping> index() {
-        return this.storage.list(Key.ROOT)
-            .thenCompose(
-                keys -> this.storage.value(
-                    keys.stream()
-                        .filter(key -> key.string().endsWith(IndexYaml.INDEX_YAML.string()))
-                        .findFirst()
-                        .orElseThrow(
-                            () -> new IllegalStateException("'index.yaml' was not found in storage")
-                        )
-                ).thenApply(PublisherAs::new)
-                .thenCompose(PublisherAs::asciiString)
-            )
-        .thenApply(IndexYamlMapping::new);
-    }
-
-    /**
      * Add entry to the existing entries.
-     * @param chart Chart yaml
-     * @param index Mapping for fields from `index.yaml` file
+     * @param tgz Tgz archive
      * @param entries Existing entries
+     * @todo #90:60min Extract logic for creating a new version of chart for `index.yaml`.
+     *  In this method and in `IndexYaml#update` the same logic for generating
+     *  additional fields is used. It is necessary to extract this logic or
+     *  to redesign `IndexYaml` class by removing interaction with storage
+     *  or something else.
      */
-    private static void addEntry(
-        final ChartYaml chart,
-        final IndexYamlMapping index,
-        final Map<String, List<Object>> entries
-    ) {
+    private void addEntry(final TgzArchive tgz, final Map<String, List<Object>> entries) {
+        final ChartYaml chart = tgz.chartYaml();
+        final Map<String, Object> newvers = new HashMap<>(chart.fields());
+        newvers.put("digest", tgz.digest());
+        newvers.put(
+            "urls",
+            new ArrayList<>(
+                Collections.singleton(String.format("%s%s", this.baseurl, tgz.name()))
+            )
+        );
+        newvers.put("created", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER));
         synchronized (entries) {
             final String name = chart.name();
-            final Map<String, Object> fromidx = index.entriesByChart(name).stream()
-                .filter(entry -> entry.get("version").equals(chart.version()))
-                .findFirst()
-                .orElseThrow(
-                    () -> new IllegalStateException(
-                        String.format(
-                            "'index.yaml' does not contain `%s-%s`", name, chart.version()
-                        )
-                    )
-                );
             if (entries.containsKey(name)) {
-                entries.get(name).add(fromidx);
+                entries.get(name).add(newvers);
             } else {
-                entries.put(name, new ArrayList<>(Collections.singletonList(fromidx)));
+                entries.put(name, new ArrayList<>(Collections.singletonList(newvers)));
             }
         }
     }
