@@ -28,6 +28,7 @@ import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.asto.blocking.BlockingStorage;
 import com.artipie.asto.memory.InMemoryStorage;
+import com.artipie.helm.metadata.IndexYamlMapping;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.http.rs.StandardRs;
 import com.artipie.vertx.VertxSliceServer;
@@ -39,7 +40,6 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.awaitility.Awaitility;
@@ -54,7 +54,6 @@ import org.junit.jupiter.api.condition.DisabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.shaded.org.yaml.snakeyaml.Yaml;
 
 /**
  * Push helm chart and ensure if index.yaml is generated properly.
@@ -139,13 +138,8 @@ public class HelmSliceIT {
      * @param yaml The index.yaml file passed as string
      * @return The first element in entries->tomcat
      */
-    @SuppressWarnings("unchecked")
     private static Map<String, Object> tomcatZeroEntry(final String yaml) {
-        return (
-            (ArrayList<Map<String, Object>>)
-                ((Map<String, Object>) new Yaml().<Map<String, Object>>load(yaml)
-                    .get("entries")).get("tomcat")
-        ).get(0);
+        return new IndexYamlMapping(yaml).entriesByChart("tomcat").get(0);
     }
 
     /**

@@ -35,14 +35,12 @@ import java.util.stream.Stream;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.hamcrest.core.IsEqual;
-import org.hamcrest.core.IsInstanceOf;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
  * Test case for {@link IndexByDirectory}.
  * @since 0.2
- * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
 final class IndexByDirectoryTest {
@@ -59,14 +57,14 @@ final class IndexByDirectoryTest {
     @Test
     void worksProperlyForManyVersions() {
         final Key prefix = new Key.From("path/nested/");
-        Stream.of("ark-1.0.1.tgz", "ark-1.2.0.tgz", "tomcat-0.4.1.tgz", "index.yaml")
+        Stream.of("ark-1.0.1.tgz", "ark-1.2.0.tgz", "tomcat-0.4.1.tgz")
             .forEach(name -> this.saveByPrefix(prefix, name));
         this.storage.save(new Key.From("newpath/ark-0.2.2.tgz"), Content.EMPTY).join();
         this.storage.save(new Key.From(prefix, "not.txt"), Content.EMPTY).join();
         this.storage.save(new Key.From(prefix, "deep/sth-0.4.1.tgz"), Content.EMPTY).join();
         final IndexYamlMapping mapping = new IndexYamlMapping(
             new String(
-                new IndexByDirectory(this.storage, prefix)
+                new IndexByDirectory(this.storage, prefix, Optional.empty())
                     .value()
                     .toCompletableFuture().join()
                     .get()
@@ -86,9 +84,8 @@ final class IndexByDirectoryTest {
 
     @Test
     void returnsEmptyForEmptyDirectory() {
-        this.saveByPrefix(Key.ROOT, "index.yaml");
         MatcherAssert.assertThat(
-            new IndexByDirectory(this.storage, new Key.From("my/prefix"))
+            new IndexByDirectory(this.storage, new Key.From("my/prefix"), Optional.empty())
                 .value()
                 .toCompletableFuture().join()
                 .isPresent(),
@@ -97,29 +94,12 @@ final class IndexByDirectoryTest {
     }
 
     @Test
-    void throwsExceptionWhenIndexYamlNotFound() {
-        final Key dir = new Key.From("my/dir");
-        this.saveByPrefix(dir, "ark-1.0.1.tgz");
-        MatcherAssert.assertThat(
-            Throwables.getRootCause(this.throwable(dir).get()),
-            new IsInstanceOf(IllegalStateException.class)
-        );
-    }
-
-    @Test
     void throwsExceptionWhenTgzIsMalformed() {
         final Key dir = new Key.From("some/directory");
         this.saveByPrefix(dir, "index.yaml");
         this.storage.save(new Key.From(dir, "malformed-0.2.2.tgz"), Content.EMPTY).join();
-        MatcherAssert.assertThat(
-            Throwables.getRootCause(this.throwable(dir).get()).getMessage(),
-            new IsEqual<>("Input is not in the .gz format")
-        );
-    }
-
-    private AtomicReference<Throwable> throwable(final Key dir) {
         final AtomicReference<Throwable> exc = new AtomicReference<>();
-        new IndexByDirectory(this.storage, dir)
+        new IndexByDirectory(this.storage, dir, Optional.empty())
             .value()
             .handle(
                 (res, thr) -> {
@@ -128,7 +108,10 @@ final class IndexByDirectoryTest {
                 }
             ).toCompletableFuture()
             .join();
-        return exc;
+        MatcherAssert.assertThat(
+            Throwables.getRootCause(exc.get()).getMessage(),
+            new IsEqual<>("Input is not in the .gz format")
+        );
     }
 
     private void saveByPrefix(final Key prefix, final String name) {

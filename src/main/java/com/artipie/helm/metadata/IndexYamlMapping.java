@@ -24,10 +24,13 @@
 package com.artipie.helm.metadata;
 
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
@@ -85,17 +88,29 @@ public final class IndexYamlMapping {
      * @return Mapping for specified chart from `entries`.
      */
     public List<Map<String, Object>> entriesByChart(final String chartname) {
+        this.entries().computeIfAbsent(chartname, nothing -> new ArrayList<Map<String, Object>>(0));
         return (List<Map<String, Object>>) this.entries().get(chartname);
     }
 
     /**
-     * Add info about a new chart to the existing mapping.
+     * Add info about chart to the existing mapping.
      * @param name Chart name
      * @param versions Collection with mapping for different versions of specified chart
      */
-    public void addNewChart(final String name, final List<Map<String, Object>> versions) {
+    public void addChartVersions(final String name, final List<Map<String, Object>> versions) {
         final Map<String, Object> entr = this.entries();
-        if (!entr.containsKey(name)) {
+        if (entr.containsKey(name)) {
+            final List<Map<String, Object>> existed = this.entriesByChart(name);
+            final String fieldname = "version";
+            final Set<String> existedvers = existed.stream().map(
+                entry -> (String) entry.get(fieldname)
+            ).collect(Collectors.toSet());
+            existed.addAll(
+                versions.stream().filter(
+                    entry -> !existedvers.contains(entry.get(fieldname))
+                ).collect(Collectors.toList())
+            );
+        } else {
             entr.put(name, versions);
         }
     }
