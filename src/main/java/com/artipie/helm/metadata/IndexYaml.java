@@ -132,7 +132,7 @@ public final class IndexYaml {
                 idx -> {
                     final IndexYamlMapping mapping = new IndexYamlMapping(idx);
                     final List<Map<String, Object>> newvers;
-                    newvers = mapping.entriesByChart(name).stream()
+                    newvers = mapping.byChart(name).stream()
                         .filter(entry -> !entry.get("version").equals(version))
                         .collect(Collectors.toList());
                     mapping.entries().remove(name);
@@ -178,7 +178,7 @@ public final class IndexYaml {
         final ChartYaml chart = tgz.chartYaml();
         final IndexYamlMapping mapping = new IndexYamlMapping(index);
         final String name = chart.name();
-        final List<Map<String, Object>> versions = mapping.entriesByChart(name);
+        final List<Map<String, Object>> versions = mapping.byChart(name);
         if (versions.stream().noneMatch(map -> map.get("version").equals(chart.version()))) {
             final Map<String, Object> newver = new HashMap<>();
             newver.put("created", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER));

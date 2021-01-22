@@ -90,7 +90,7 @@ final class IndexYamlTest {
     @Test
     void verifyDigestFromIndex() {
         this.update(IndexYamlTest.TOMCAT);
-        final List<Map<String, Object>> tomcat = this.mapping().entriesByChart("tomcat");
+        final List<Map<String, Object>> tomcat = this.mapping().byChart("tomcat");
         MatcherAssert.assertThat(
             tomcat.get(0).get("digest"),
             new IsEqual<>(
@@ -103,9 +103,9 @@ final class IndexYamlTest {
     void notChangeForSameChartWithSameVersion() {
         this.update(IndexYamlTest.TOMCAT);
         final String tomcat = "tomcat";
-        final Map<String, Object> old = this.mapping().entriesByChart(tomcat).get(0);
+        final Map<String, Object> old = this.mapping().byChart(tomcat).get(0);
         this.update(IndexYamlTest.TOMCAT);
-        final List<Map<String, Object>> updt = this.mapping().entriesByChart(tomcat);
+        final List<Map<String, Object>> updt = this.mapping().byChart(tomcat);
         MatcherAssert.assertThat(
             "New version was not added",
             updt.size(),
@@ -123,7 +123,7 @@ final class IndexYamlTest {
         this.update(IndexYamlTest.TOMCAT);
         this.update(IndexYamlTest.ARK);
         this.update("ark-1.2.0.tgz");
-        final List<Map<String, Object>> entries = this.mapping().entriesByChart("ark");
+        final List<Map<String, Object>> entries = this.mapping().byChart("ark");
         MatcherAssert.assertThat(
             "New version was added",
             entries.size(),
@@ -143,7 +143,7 @@ final class IndexYamlTest {
     void addMetadataForNewChartInExistingIndex() {
         this.update(IndexYamlTest.TOMCAT);
         this.update(IndexYamlTest.ARK);
-        final Map<String, Object> ark = this.mapping().entriesByChart("ark").get(0);
+        final Map<String, Object> ark = this.mapping().byChart("ark").get(0);
         final Map<String, Object> chart = this.chartYaml(IndexYamlTest.ARK);
         final int numgenfields = 3;
         MatcherAssert.assertThat(
@@ -217,15 +217,13 @@ final class IndexYamlTest {
         final IndexYamlMapping mapping = this.mapping();
         MatcherAssert.assertThat(
             "Number of versions of chart is correct",
-            mapping.entriesByChart(chart).size(),
+            mapping.byChart(chart).size(),
             new IsEqual<>(1)
         );
         MatcherAssert.assertThat(
             "Correct version of chart was deleted",
-            mapping.entriesByChart(chart)
-                .get(0)
-                .get("version"),
-            new IsEqual<>("1.2.0")
+            mapping.byChartAndVersion(chart, "1.2.0").isPresent(),
+            new IsEqual<>(true)
         );
     }
 
@@ -263,7 +261,7 @@ final class IndexYamlTest {
             .blockingGet();
         final IndexYamlMapping mapping = this.mapping();
         MatcherAssert.assertThat(
-            mapping.entriesByChart(chart).size(),
+            mapping.byChart(chart).size(),
             new IsEqual<>(1)
         );
     }
