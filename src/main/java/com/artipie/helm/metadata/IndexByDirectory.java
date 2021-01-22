@@ -23,6 +23,7 @@
  */
 package com.artipie.helm.metadata;
 
+import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.asto.ext.PublisherAs;
@@ -77,7 +78,7 @@ public class IndexByDirectory {
      * Obtains generated `index.yaml`.
      * @return Bytes of generated `index.yaml`, empty in case of absence of packaged charts.
      */
-    public CompletionStage<Optional<byte[]>> value() {
+    public CompletionStage<Optional<Content>> value() {
         final Map<String, List<Object>> entries = new ConcurrentHashMap<>();
         return this.storage.list(this.directory).thenCompose(
             keys -> CompletableFuture.allOf(
@@ -96,7 +97,7 @@ public class IndexByDirectory {
                     ).toArray(CompletableFuture[]::new)
             ).thenApply(nothing -> new IndexYamlMapping())
             .thenApply(index -> index.addEntries(entries))
-            .thenApply(IndexYamlMapping::toBytes)
+            .thenApply(IndexYamlMapping::toContent)
         );
     }
 

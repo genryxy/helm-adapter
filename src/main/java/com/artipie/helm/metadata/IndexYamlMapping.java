@@ -23,14 +23,13 @@
  */
 package com.artipie.helm.metadata;
 
+import com.artipie.asto.Content;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
@@ -44,6 +43,11 @@ public final class IndexYamlMapping {
      * Entries.
      */
     private static final String ENTRS = "entries";
+
+    /**
+     * Version.
+     */
+    private static final String VRSN = "version";
 
     /**
      * Mapping for fields from index.yaml file.
@@ -87,9 +91,22 @@ public final class IndexYamlMapping {
      * @param chartname Chart name
      * @return Mapping for specified chart from `entries`.
      */
-    public List<Map<String, Object>> entriesByChart(final String chartname) {
+    public List<Map<String, Object>> byChart(final String chartname) {
         this.entries().computeIfAbsent(chartname, nothing -> new ArrayList<Map<String, Object>>(0));
         return (List<Map<String, Object>>) this.entries().get(chartname);
+    }
+
+    /**
+     * Obtains entry with specified version and chart name.
+     * @param chartname Chart name
+     * @param version Version of chart
+     * @return Entry if version for specified name exists, empty otherwise.
+     */
+    public Optional<Map<String, Object>> byChartAndVersion(final String chartname,
+        final String version) {
+        return this.byChart(chartname).stream()
+            .filter(entry -> entry.get(IndexYamlMapping.VRSN).equals(version))
+            .findFirst();
     }
 
     /**
@@ -100,16 +117,19 @@ public final class IndexYamlMapping {
     public void addChartVersions(final String name, final List<Map<String, Object>> versions) {
         final Map<String, Object> entr = this.entries();
         if (entr.containsKey(name)) {
-            final List<Map<String, Object>> existed = this.entriesByChart(name);
-            final String fieldname = "version";
-            final Set<String> existedvers = existed.stream().map(
-                entry -> (String) entry.get(fieldname)
-            ).collect(Collectors.toSet());
-            existed.addAll(
-                versions.stream().filter(
-                    entry -> !existedvers.contains(entry.get(fieldname))
-                ).collect(Collectors.toList())
-            );
+            final List<Map<String, Object>> existed = this.byChart(name);
+            for (final Map<String, Object> vers : versions) {
+                final Optional<Map<String, Object>> opt;
+                opt = this.byChartAndVersion(name, (String) vers.get(IndexYamlMapping.VRSN));
+                if (opt.isPresent()) {
+                    vers.put("created", IndexYamlMapping.now());
+                    existed.removeIf(
+                        chart -> chart.get(IndexYamlMapping.VRSN)
+                            .equals(opt.get().get(IndexYamlMapping.VRSN))
+                    );
+                }
+                existed.add(vers);
+            }
         } else {
             entr.put(name, versions);
         }
@@ -129,13 +149,13 @@ public final class IndexYamlMapping {
      * Converts mapping to bytes.
      * @return Bytes if entries mapping contains any chart, empty otherwise.
      */
-    public Optional<byte[]> toBytes() {
-        final Optional<byte[]> res;
+    public Optional<Content> toContent() {
+        final Optional<Content> res;
         if (this.entries().isEmpty()) {
             res = Optional.empty();
         } else {
-            this.mapping.put("generated", ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER));
-            res = Optional.of(this.toString().getBytes());
+            this.mapping.put("generated", IndexYamlMapping.now());
+            res = Optional.of(new Content.From(this.toString().getBytes()));
         }
         return res;
     }
@@ -146,5 +166,13 @@ public final class IndexYamlMapping {
         options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
         options.setPrettyFlow(true);
         return new Yaml(options).dump(this.mapping);
+    }
+
+    /**
+     * Obtains current time.
+     * @return Current time.
+     */
+    private static String now() {
+        return ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER);
     }
 }

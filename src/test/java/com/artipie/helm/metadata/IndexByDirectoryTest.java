@@ -26,6 +26,7 @@ package com.artipie.helm.metadata;
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
+import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
 import com.google.common.base.Throwables;
@@ -41,6 +42,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Test case for {@link IndexByDirectory}.
  * @since 0.2
+ * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
 final class IndexByDirectoryTest {
@@ -63,12 +65,13 @@ final class IndexByDirectoryTest {
         this.storage.save(new Key.From(prefix, "not.txt"), Content.EMPTY).join();
         this.storage.save(new Key.From(prefix, "deep/sth-0.4.1.tgz"), Content.EMPTY).join();
         final IndexYamlMapping mapping = new IndexYamlMapping(
-            new String(
+            new PublisherAs(
                 new IndexByDirectory(this.storage, prefix, Optional.empty())
                     .value()
                     .toCompletableFuture().join()
                     .get()
-            )
+            ).asciiString()
+            .toCompletableFuture().join()
         );
         MatcherAssert.assertThat(
             "Contains required charts",
@@ -77,7 +80,7 @@ final class IndexByDirectoryTest {
         );
         MatcherAssert.assertThat(
             "Contains both versions of chart",
-            mapping.entriesByChart("ark").size(),
+            mapping.byChart("ark").size(),
             new IsEqual<>(2)
         );
     }

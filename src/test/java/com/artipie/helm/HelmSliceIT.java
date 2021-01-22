@@ -139,7 +139,7 @@ public class HelmSliceIT {
      * @return The first element in entries->tomcat
      */
     private static Map<String, Object> tomcatZeroEntry(final String yaml) {
-        return new IndexYamlMapping(yaml).entriesByChart("tomcat").get(0);
+        return new IndexYamlMapping(yaml).byChart("tomcat").get(0);
     }
 
     /**
