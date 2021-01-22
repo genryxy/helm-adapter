@@ -50,7 +50,7 @@ final class IndexMergingTest {
 
     @Test
     void mergedFileContainsRequiredCharts() {
-        final IndexYamlMapping target = this.index("merge/target/index.yaml");
+        final IndexYamlMapping target = this.index("merge/output/index.yaml");
         MatcherAssert.assertThat(
             this.mergedIndex().entries().keySet(),
             Matchers.containsInAnyOrder(target.entries().keySet().toArray())
@@ -60,7 +60,7 @@ final class IndexMergingTest {
     @Test
     void tomcatContainsBothRequiredVersions() {
         final String chart = "tomcat";
-        final IndexYamlMapping target = this.index("merge/target/index.yaml");
+        final IndexYamlMapping target = this.index("merge/output/index.yaml");
         MatcherAssert.assertThat(
             this.mergedIndex().byChart(chart).stream()
                 .map(entry -> (String) entry.get("version"))
