@@ -131,6 +131,7 @@ public final class IndexYamlMapping {
                 existed.add(vers);
             }
         } else {
+            versions.forEach(vers -> vers.put("created", IndexYamlMapping.now()));
             entr.put(name, versions);
         }
     }
