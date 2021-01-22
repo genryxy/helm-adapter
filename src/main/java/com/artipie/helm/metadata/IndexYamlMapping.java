@@ -116,13 +116,13 @@ public final class IndexYamlMapping {
      */
     public void addChartVersions(final String name, final List<Map<String, Object>> versions) {
         final Map<String, Object> entr = this.entries();
+        versions.forEach(vers -> vers.put("created", IndexYamlMapping.now()));
         if (entr.containsKey(name)) {
             final List<Map<String, Object>> existed = this.byChart(name);
             for (final Map<String, Object> vers : versions) {
                 final Optional<Map<String, Object>> opt;
                 opt = this.byChartAndVersion(name, (String) vers.get(IndexYamlMapping.VRSN));
                 if (opt.isPresent()) {
-                    vers.put("created", IndexYamlMapping.now());
                     existed.removeIf(
                         chart -> chart.get(IndexYamlMapping.VRSN)
                             .equals(opt.get().get(IndexYamlMapping.VRSN))
@@ -131,7 +131,6 @@ public final class IndexYamlMapping {
                 existed.add(vers);
             }
         } else {
-            versions.forEach(vers -> vers.put("created", IndexYamlMapping.now()));
             entr.put(name, versions);
         }
     }
