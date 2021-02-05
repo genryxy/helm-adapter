@@ -26,6 +26,7 @@ package com.artipie.helm;
 import com.artipie.asto.Storage;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
+import com.artipie.helm.http.HelmSlice;
 import com.artipie.http.auth.Authentication;
 import com.artipie.http.auth.JoinedPermissions;
 import com.artipie.http.auth.Permissions;

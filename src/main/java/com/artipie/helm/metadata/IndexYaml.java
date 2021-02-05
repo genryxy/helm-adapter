@@ -55,7 +55,6 @@ import org.yaml.snakeyaml.Yaml;
  */
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
 public final class IndexYaml {
-
     /**
      * An example of time this formatter produces: 2016-10-06T16:23:20.499814565-06:00 .
      */
@@ -73,18 +72,11 @@ public final class IndexYaml {
     private final RxStorage storage;
 
     /**
-     * The base path for urls field.
-     */
-    private final String base;
-
-    /**
      * Ctor.
      * @param storage The storage.
-     * @param base The base path for urls field.
      */
-    public IndexYaml(final Storage storage, final String base) {
+    public IndexYaml(final Storage storage) {
         this.storage = new RxStorageWrapper(storage);
-        this.base = base;
     }
 
     /**
@@ -97,7 +89,7 @@ public final class IndexYaml {
             Single.just(IndexYaml.empty())
         ).map(
             idx -> {
-                this.update(idx, arch);
+                IndexYaml.update(idx, arch);
                 return idx;
             }
         ).flatMapCompletable(this::indexToStorage);
@@ -174,7 +166,7 @@ public final class IndexYaml {
      * @param index The index yaml mappings.
      * @param tgz The archive.
      */
-    private void update(final Map<String, Object> index, final TgzArchive tgz) {
+    private static void update(final Map<String, Object> index, final TgzArchive tgz) {
         final ChartYaml chart = tgz.chartYaml();
         final IndexYamlMapping mapping = new IndexYamlMapping(index);
         final String name = chart.name();
@@ -185,7 +177,7 @@ public final class IndexYaml {
             newver.put(
                 "urls",
                 new ArrayList<>(
-                    Collections.singleton(String.format("%s%s", this.base, tgz.name()))
+                    Collections.singleton(tgz.name())
                 )
             );
             newver.put("digest", tgz.digest());

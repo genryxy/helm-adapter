@@ -22,10 +22,11 @@
  * SOFTWARE.
  */
 
-package com.artipie.helm;
+package com.artipie.helm.http;
 
 import com.artipie.asto.Remaining;
 import com.artipie.asto.Storage;
+import com.artipie.helm.TgzArchive;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.http.Response;
 import com.artipie.http.Slice;
@@ -43,13 +44,12 @@ import org.reactivestreams.Publisher;
 
 /**
  * A Slice which accept archived charts, save them into a storage and trigger index.yml reindexing.
+ * @since 0.2
  * @todo #13:30min Create an integration test
  *  We need an integration test for this class with described logic of upload from client side
- * @since 0.2
  * @checkstyle MethodBodyCommentsCheck (500 lines)
  */
-@SuppressWarnings({"PMD.UnusedPrivateField", "PMD.SingularField", "PMD.UnusedFormalParameter"})
-public final class PushChartSlice implements Slice {
+final class PushChartSlice implements Slice {
 
     /**
      * The Storage.
@@ -57,18 +57,11 @@ public final class PushChartSlice implements Slice {
     private final Storage storage;
 
     /**
-     * The base path for urls.
-     */
-    private final String base;
-
-    /**
      * Ctor.
      * @param storage The storage.
-     * @param base The base path of urls field.
      */
-    public PushChartSlice(final Storage storage, final String base) {
+    PushChartSlice(final Storage storage) {
         this.storage = storage;
-        this.base = base;
     }
 
     @Override
@@ -105,8 +98,8 @@ public final class PushChartSlice implements Slice {
      */
     private Single<Response> response(final Publisher<ByteBuffer> body) {
         return memory(body).flatMapCompletable(
-            arch -> arch.save(this.storage).flatMapCompletable(
-                key -> new IndexYaml(this.storage, this.base).update(arch)
+            tgz -> tgz.save(this.storage).flatMapCompletable(
+                key -> new IndexYaml(this.storage).update(tgz)
             )
         ).andThen(Single.just(new RsWithStatus(StandardRs.EMPTY, RsStatus.OK)));
     }

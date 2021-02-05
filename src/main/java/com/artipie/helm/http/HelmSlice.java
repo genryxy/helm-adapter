@@ -21,8 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-
-package com.artipie.helm;
+package com.artipie.helm.http;
 
 import com.artipie.asto.Storage;
 import com.artipie.http.Slice;
@@ -80,9 +79,20 @@ public final class HelmSlice extends Slice.Wrap {
                         new ByMethodsRule(RqMethod.POST)
                     ),
                     new BasicAuthSlice(
-                        new PushChartSlice(storage, base),
+                        new PushChartSlice(storage),
                         auth,
                         new Permission.ByName(perms, Action.Standard.WRITE)
+                    )
+                ),
+                new RtRulePath(
+                    new RtRule.All(
+                        new ByMethodsRule(RqMethod.GET),
+                        new RtRule.ByPath(DownloadIndexSlice.PTRN)
+                    ),
+                    new BasicAuthSlice(
+                        new DownloadIndexSlice(base, storage),
+                        auth,
+                        new Permission.ByName(perms, Action.Standard.READ)
                     )
                 ),
                 new RtRulePath(

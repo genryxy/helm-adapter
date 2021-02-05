@@ -5,7 +5,7 @@ entries:
     - email: ybiran@ananware.systems
       name: yahavb
     urls:
-    - http://central.artipie.com/helm/tomcat-0.4.1.tgz
+    - tomcat-0.4.1.tgz
     appVersion: '7.0'
     apiVersion: v1
     created: '2021-01-11T16:21:01.376598500+03:00'
@@ -23,7 +23,7 @@ entries:
     - email: unguiculus@gmail.com
       name: unguiculus
     urls:
-    - http://central.artipie.com/helm/ark-1.0.1.tgz
+    - ark-1.0.1.tgz
     appVersion: 0.8.2
     apiVersion: v1
     sources:
@@ -40,7 +40,7 @@ entries:
     - email: unguiculus@gmail.com
       name: unguiculus
     urls:
-    - http://central.artipie.com/helm/ark-1.2.0.tgz
+    - ark-1.2.0.tgz
     appVersion: 0.9.1
     apiVersion: v1
     sources:

@@ -39,7 +39,7 @@ import org.junit.jupiter.api.Test;
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
 final class IndexMergingTest {
     /**
-     * Remote `index.yaml`.
+     * Source `index.yaml`.
      */
     private IndexYamlMapping source;
 
