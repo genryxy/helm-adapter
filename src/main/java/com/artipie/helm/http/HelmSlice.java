@@ -66,6 +66,7 @@ public final class HelmSlice extends Slice.Wrap {
      * @param perms Access permissions.
      * @param auth Authentication.
      */
+    @SuppressWarnings("PMD.UnusedFormalParameter")
     public HelmSlice(
         final Storage storage,
         final String base,
@@ -82,17 +83,6 @@ public final class HelmSlice extends Slice.Wrap {
                         new PushChartSlice(storage),
                         auth,
                         new Permission.ByName(perms, Action.Standard.WRITE)
-                    )
-                ),
-                new RtRulePath(
-                    new RtRule.All(
-                        new ByMethodsRule(RqMethod.GET),
-                        new RtRule.ByPath(DownloadIndexSlice.PTRN)
-                    ),
-                    new BasicAuthSlice(
-                        new DownloadIndexSlice(base, storage),
-                        auth,
-                        new Permission.ByName(perms, Action.Standard.READ)
                     )
                 ),
                 new RtRulePath(

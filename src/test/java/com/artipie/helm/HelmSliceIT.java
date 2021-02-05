@@ -123,8 +123,7 @@ public class HelmSliceIT {
                     tomcatZeroEntry(expected),
                     tomcatZeroEntry(adapter)
                 ).entriesDiffering(),
-                ComposeMatchers.compose(new IsMapWithSize<String, Object>(new IsEqual<>(2)))
-                    .and(new IsMapContaining<>(new IsEqual<>("urls"), new IsAnything<>()))
+                ComposeMatchers.compose(new IsMapWithSize<String, Object>(new IsEqual<>(1)))
                     .and(new IsMapContaining<>(new IsEqual<>("created"), new IsAnything<>()))
             );
         } finally {
