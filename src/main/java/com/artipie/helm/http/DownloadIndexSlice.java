@@ -23,19 +23,20 @@
  */
 package com.artipie.helm.http;
 
-import com.artipie.asto.Concatenation;
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
+import com.artipie.asto.ext.PublisherAs;
 import com.artipie.helm.metadata.IndexYamlMapping;
 import com.artipie.http.Headers;
 import com.artipie.http.Response;
 import com.artipie.http.Slice;
 import com.artipie.http.async.AsyncResponse;
+import com.artipie.http.rq.RequestLineFrom;
 import com.artipie.http.rs.RsFull;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.http.rs.StandardRs;
-import hu.akarnokd.rxjava2.interop.SingleInterop;
+import com.artipie.http.slice.KeyFromPath;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.ByteBuffer;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.reactivestreams.Publisher;
@@ -87,11 +89,11 @@ final class DownloadIndexSlice implements Slice {
         final Iterable<Map.Entry<String, String>> headers,
         final Publisher<ByteBuffer> body
     ) {
-        final Key path = new Key.From(line);
+        final Key path = new KeyFromPath(new RequestLineFrom(line).uri().toString());
         return new AsyncResponse(
             this.storage.exists(path).thenCompose(
                 exists -> {
-                    final CompletableFuture<Response> rsp;
+                    final CompletionStage<Response> rsp;
                     if (exists) {
                         rsp = this.storage.value(path)
                             .thenCompose(content -> new UpdateIndexUrls(content, this.base).value())
@@ -153,16 +155,13 @@ final class DownloadIndexSlice implements Slice {
          * Return modified content with prepended URLs.
          * @return Modified content with prepended URLs
          */
-        public CompletableFuture<Content> value() {
-            return new Concatenation(this.original)
-                .single()
-                .map(ByteBuffer::array)
-                .map(bytes -> new String(bytes, StandardCharsets.UTF_8))
-                .map(IndexYamlMapping::new)
-                .map(this::update)
-                .map(idx -> idx.toContent().get())
-                .to(SingleInterop.get())
-                .toCompletableFuture();
+        public CompletionStage<Content> value() {
+            return new PublisherAs(this.original)
+                .bytes()
+                .thenApply(bytes -> new String(bytes, StandardCharsets.UTF_8))
+                .thenApply(IndexYamlMapping::new)
+                .thenApply(this::update)
+                .thenApply(idx -> idx.toContent().get());
         }
 
         /**
@@ -176,7 +175,7 @@ final class DownloadIndexSlice implements Slice {
             entrs.forEach(
                 chart -> index.byChart(chart).forEach(
                     entr -> {
-                        final String key = "url";
+                        final String key = "urls";
                         final List<String> urls = (List<String>) entr.get(key);
                         entr.put(
                             key,
