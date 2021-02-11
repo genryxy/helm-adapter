@@ -181,13 +181,30 @@ final class DownloadIndexSlice implements Slice {
                         entr.put(
                             key,
                             urls.stream()
-                                .map(uri -> String.format("%s/%s", this.base, uri))
+                                .map(this::baseUrlWithUri)
                                 .collect(Collectors.toList())
                         );
                     }
                 )
             );
             return index;
+        }
+
+        /**
+         * Combine base url with uri.
+         * @param uri Uri
+         * @return Url that was obtained after combining.
+         */
+        private String baseUrlWithUri(final String uri) {
+            final String unsafe = String.format("%s/%s", this.base, uri);
+            try {
+                return new URL(unsafe).toString();
+            } catch (final MalformedURLException exc) {
+                throw new IllegalStateException(
+                    String.format("Failed to create URL from `%s`", unsafe),
+                    exc
+                );
+            }
         }
     }
 }
