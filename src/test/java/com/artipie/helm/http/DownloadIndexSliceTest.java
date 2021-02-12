@@ -113,6 +113,17 @@ final class DownloadIndexSliceTest {
     }
 
     @Test
+    void returnsNotFound() {
+        MatcherAssert.assertThat(
+            new DownloadIndexSlice("http://localhost:8080", this.storage),
+            new SliceHasResponse(
+                new RsHasStatus(RsStatus.NOT_FOUND),
+                new RequestLine(RqMethod.GET, "/index.yaml")
+            )
+        );
+    }
+
+    @Test
     void throwsMalformedUrlExceptionForInvalidBase() {
         final String base = "withoutschemelocalhost:8080";
         final Throwable thr = Assertions.assertThrows(
