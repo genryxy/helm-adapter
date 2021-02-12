@@ -23,7 +23,7 @@
  */
 package com.artipie.helm;
 
-import io.reactivex.Single;
+import java.util.List;
 import java.util.Map;
 import org.yaml.snakeyaml.Yaml;
 
@@ -32,19 +32,28 @@ import org.yaml.snakeyaml.Yaml;
  *
  * @since 0.2
  */
-public class ChartYaml {
+@SuppressWarnings("unchecked")
+public final class ChartYaml {
 
     /**
-     * The Yaml.
+     * Mapping for fields from index.yaml file.
      */
-    private final Single<Map<String, Object>> yaml;
+    private final Map<String, Object> mapping;
 
     /**
      * Ctor.
-     * @param yaml The yaml.
+     * @param yaml Yaml for entry of chart (one specific version)
      */
     public ChartYaml(final String yaml) {
-        this.yaml = Single.<Map<String, Object>>fromCallable(() -> new Yaml().load(yaml)).cache();
+        this((Map<String, Object>) new Yaml().load(yaml));
+    }
+
+    /**
+     * Ctor.
+     * @param mapfromyaml Mapping of fields for chart (one specific version)
+     */
+    public ChartYaml(final Map<String, Object> mapfromyaml) {
+        this.mapping = mapfromyaml;
     }
 
     /**
@@ -52,7 +61,7 @@ public class ChartYaml {
      * @return Name of the chart.
      */
     public String name() {
-        return (String) this.field("name");
+        return (String) this.mapping.get("name");
     }
 
     /**
@@ -60,7 +69,7 @@ public class ChartYaml {
      * @return Version of the chart.
      */
     public String version() {
-        return (String) this.field("version");
+        return (String) this.mapping.get("version");
     }
 
     /**
@@ -68,15 +77,14 @@ public class ChartYaml {
      * @return The fields.
      */
     public Map<String, Object> fields() {
-        return this.yaml.blockingGet();
+        return this.mapping;
     }
 
     /**
-     * Obtain a field by name.
-     * @param name The name of field to read.
-     * @return A field the Yaml file.
+     * Obtain a list of urls of the chart.
+     * @return Urls of the chart.
      */
-    private Object field(final String name) {
-        return this.yaml.blockingGet().get(name);
+    public List<String> urls() {
+        return (List<String>) this.mapping.get("urls");
     }
 }

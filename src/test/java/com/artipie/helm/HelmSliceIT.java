@@ -28,6 +28,7 @@ import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.asto.blocking.BlockingStorage;
 import com.artipie.asto.memory.InMemoryStorage;
+import com.artipie.asto.test.TestResource;
 import com.artipie.helm.http.HelmSlice;
 import com.artipie.helm.metadata.IndexYamlMapping;
 import com.artipie.http.rs.RsStatus;
@@ -40,7 +41,6 @@ import io.vertx.reactivex.ext.web.client.WebClient;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.awaitility.Awaitility;
@@ -79,14 +79,7 @@ public class HelmSliceIT {
             new HelmSlice(fls, String.format("http://localhost:%d/", port)),
             port
         );
-        final byte[] tomcat = Files.readAllBytes(
-            Paths.get(
-                Thread.currentThread()
-                    .getContextClassLoader()
-                    .getResource("tomcat-0.4.1.tgz")
-                    .toURI()
-            )
-        );
+        final byte[] tomcat = new TestResource("tomcat-0.4.1.tgz").asBytes();
         final WebClient web = WebClient.create(vertx);
         try {
             server.start();

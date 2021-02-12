@@ -27,6 +27,7 @@ import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.asto.ext.PublisherAs;
+import com.artipie.helm.ChartYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
 import com.artipie.http.Headers;
 import com.artipie.http.Response;
@@ -35,9 +36,12 @@ import com.artipie.http.async.AsyncResponse;
 import com.artipie.http.rq.RequestLineFrom;
 import com.artipie.http.rs.RsFull;
 import com.artipie.http.rs.RsStatus;
+import com.artipie.http.rs.RsWithStatus;
 import com.artipie.http.rs.StandardRs;
 import com.artipie.http.slice.KeyFromPath;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -46,6 +50,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.reactivestreams.Publisher;
@@ -89,24 +94,34 @@ final class DownloadIndexSlice implements Slice {
         final Iterable<Map.Entry<String, String>> headers,
         final Publisher<ByteBuffer> body
     ) {
-        final Key path = new KeyFromPath(new RequestLineFrom(line).uri().toString());
-        return new AsyncResponse(
-            this.storage.exists(path).thenCompose(
-                exists -> {
-                    final CompletionStage<Response> rsp;
-                    if (exists) {
-                        rsp = this.storage.value(path)
-                            .thenCompose(content -> new UpdateIndexUrls(content, this.base).value())
-                            .thenApply(
-                                content -> new RsFull(RsStatus.OK, Headers.EMPTY, content)
-                            );
-                    } else {
-                        rsp = CompletableFuture.completedFuture(StandardRs.NOT_FOUND);
+        final RequestLineFrom rqline = new RequestLineFrom(line);
+        final String uri = rqline.uri().getPath();
+        final Matcher matcher = DownloadIndexSlice.PTRN.matcher(uri);
+        final Response resp;
+        if (matcher.matches()) {
+            final Key path = new KeyFromPath(uri);
+            resp = new AsyncResponse(
+                this.storage.exists(path).thenCompose(
+                    exists -> {
+                        final CompletionStage<Response> rsp;
+                        if (exists) {
+                            rsp = this.storage.value(path)
+                                .thenCompose(
+                                    content -> new UpdateIndexUrls(content, this.base).value()
+                                ).thenApply(
+                                    content -> new RsFull(RsStatus.OK, Headers.EMPTY, content)
+                                );
+                        } else {
+                            rsp = CompletableFuture.completedFuture(StandardRs.NOT_FOUND);
+                        }
+                        return rsp;
                     }
-                    return rsp;
-                }
-            )
-        );
+                )
+            );
+        } else {
+            resp = new RsWithStatus(RsStatus.BAD_REQUEST);
+        }
+        return resp;
     }
 
     /**
@@ -118,7 +133,7 @@ final class DownloadIndexSlice implements Slice {
         try {
             return new URL(url.replaceAll("/$", ""));
         } catch (final MalformedURLException exc) {
-            throw new IllegalArgumentException(
+            throw new IllegalStateException(
                 String.format("Failed to build URL from '%s'", url),
                 exc
             );
@@ -169,16 +184,14 @@ final class DownloadIndexSlice implements Slice {
          * @param index Index yaml mapping
          * @return Index yaml mapping with updated urls.
          */
-        @SuppressWarnings("unchecked")
         private IndexYamlMapping update(final IndexYamlMapping index) {
             final Set<String> entrs = index.entries().keySet();
             entrs.forEach(
                 chart -> index.byChart(chart).forEach(
                     entr -> {
-                        final String key = "urls";
-                        final List<String> urls = (List<String>) entr.get(key);
+                        final List<String> urls = new ChartYaml(entr).urls();
                         entr.put(
-                            key,
+                            "urls",
                             urls.stream()
                                 .map(this::baseUrlWithUri)
                                 .collect(Collectors.toList())
@@ -197,10 +210,10 @@ final class DownloadIndexSlice implements Slice {
         private String baseUrlWithUri(final String uri) {
             final String unsafe = String.format("%s/%s", this.base, uri);
             try {
-                return new URL(unsafe).toString();
-            } catch (final MalformedURLException exc) {
+                return new URI(unsafe).toString();
+            } catch (final URISyntaxException exc) {
                 throw new IllegalStateException(
-                    String.format("Failed to create URL from `%s`", unsafe),
+                    String.format("Failed to create URI from `%s`", unsafe),
                     exc
                 );
             }
