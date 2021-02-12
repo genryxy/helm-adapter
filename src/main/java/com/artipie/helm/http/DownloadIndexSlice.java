@@ -184,7 +184,6 @@ final class DownloadIndexSlice implements Slice {
          * @param index Index yaml mapping
          * @return Index yaml mapping with updated urls.
          */
-        @SuppressWarnings("unchecked")
         private IndexYamlMapping update(final IndexYamlMapping index) {
             final Set<String> entrs = index.entries().keySet();
             entrs.forEach(
