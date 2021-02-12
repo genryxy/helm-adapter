@@ -21,8 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-
-package com.artipie.helm;
+package com.artipie.helm.http;
 
 import com.artipie.asto.Storage;
 import com.artipie.http.Slice;
@@ -67,6 +66,7 @@ public final class HelmSlice extends Slice.Wrap {
      * @param perms Access permissions.
      * @param auth Authentication.
      */
+    @SuppressWarnings("PMD.UnusedFormalParameter")
     public HelmSlice(
         final Storage storage,
         final String base,
@@ -80,7 +80,7 @@ public final class HelmSlice extends Slice.Wrap {
                         new ByMethodsRule(RqMethod.POST)
                     ),
                     new BasicAuthSlice(
-                        new PushChartSlice(storage, base),
+                        new PushChartSlice(storage),
                         auth,
                         new Permission.ByName(perms, Action.Standard.WRITE)
                     )

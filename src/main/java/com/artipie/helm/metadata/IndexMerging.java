@@ -29,12 +29,8 @@ import java.util.concurrent.CompletionStage;
 
 /**
  * Merging two `index.yaml` files in one file.
- * <ul>
- *     <li>If source `index.yaml` and remote have the same version of chart,
- *     data from remote chart should be taken</li>
- *     <li>If source `index.yaml` does not have some charts or versions of chart,
- *     `created` field for them should be updated during merge of the two indexes.</li>
- * </ul>
+ * If source `index.yaml` does not have some charts or versions of chart,
+ * `created` field for them should be updated during merge of the two indexes.
  * @since 0.2
  */
 public final class IndexMerging {

@@ -67,11 +67,6 @@ final class IndexYamlTest {
     private static final String ARK = "ark-1.0.1.tgz";
 
     /**
-     * Base string.
-     */
-    private static final String BASE = "http://central.artipie.com/helm/";
-
-    /**
      * Storage.
      */
     private Storage storage;
@@ -84,7 +79,7 @@ final class IndexYamlTest {
     @BeforeEach
     void init() {
         this.storage = new InMemoryStorage();
-        this.yaml = new IndexYaml(this.storage, IndexYamlTest.BASE);
+        this.yaml = new IndexYaml(this.storage);
     }
 
     @Test
@@ -163,11 +158,7 @@ final class IndexYamlTest {
                     this.matcher("description", chart),
                     this.matcher("home", chart),
                     this.matcher("maintainers", chart),
-                    Matchers.hasEntry(
-                        "urls", Collections.singletonList(
-                            String.format("%s%s", IndexYamlTest.BASE, IndexYamlTest.ARK)
-                        )
-                    ),
+                    Matchers.hasEntry("urls", Collections.singletonList(IndexYamlTest.ARK)),
                     Matchers.hasEntry(
                         "sources", Collections.singletonList("https://github.com/heptio/ark")
                     ),
@@ -181,7 +172,7 @@ final class IndexYamlTest {
     @Test
     void deleteChartByNameFromIndexYaml() {
         new TestResource("index.yaml").saveTo(this.storage);
-        new IndexYaml(this.storage, IndexYamlTest.BASE).deleteByName("ark").blockingGet();
+        this.yaml.deleteByName("ark").blockingGet();
         final IndexYamlMapping mapping = this.mapping();
         MatcherAssert.assertThat(
             "Number of charts is correct",
@@ -198,11 +189,7 @@ final class IndexYamlTest {
     @Test
     void failsToDeleteChartByNameWhenIndexYamlAbsent() {
         MatcherAssert.assertThat(
-            Throwables.getRootCause(
-                new IndexYaml(this.storage, IndexYamlTest.BASE)
-                .deleteByName("ark")
-                .blockingGet()
-            ),
+            Throwables.getRootCause(this.yaml.deleteByName("ark").blockingGet()),
             new IsInstanceOf(FileNotFoundException.class)
         );
     }
@@ -211,9 +198,7 @@ final class IndexYamlTest {
     void deleteChartByNameVersionWithManyVersionsFromIndex() {
         final String chart = "ark";
         new TestResource("index.yaml").saveTo(this.storage);
-        new IndexYaml(this.storage, IndexYamlTest.BASE)
-            .deleteByNameAndVersion(chart, "1.0.1")
-            .blockingGet();
+        this.yaml.deleteByNameAndVersion(chart, "1.0.1").blockingGet();
         final IndexYamlMapping mapping = this.mapping();
         MatcherAssert.assertThat(
             "Number of versions of chart is correct",
@@ -231,9 +216,7 @@ final class IndexYamlTest {
     void deleteChartByNameVersionWithSingleVersionFromIndex() {
         final String chart = "tomcat";
         new TestResource("index.yaml").saveTo(this.storage);
-        new IndexYaml(this.storage, IndexYamlTest.BASE)
-            .deleteByNameAndVersion(chart, "0.4.1")
-            .blockingGet();
+        this.yaml.deleteByNameAndVersion(chart, "0.4.1").blockingGet();
         MatcherAssert.assertThat(
             this.mapping().entries().containsKey(chart),
             new IsEqual<>(false)
@@ -243,9 +226,7 @@ final class IndexYamlTest {
     @Test
     void deleteAbsentChartByNameFromIndex() {
         new TestResource("index.yaml").saveTo(this.storage);
-        new IndexYaml(this.storage, IndexYamlTest.BASE)
-            .deleteByName("absent")
-            .blockingGet();
+        this.yaml.deleteByName("absent").blockingGet();
         MatcherAssert.assertThat(
             this.mapping().entries().size(),
             new IsEqual<>(2)
@@ -256,9 +237,7 @@ final class IndexYamlTest {
     void deleteChartByNameAndAbsentVersionFromIndex() {
         final String chart = "tomcat";
         new TestResource("index.yaml").saveTo(this.storage);
-        new IndexYaml(this.storage, IndexYamlTest.BASE)
-            .deleteByNameAndVersion(chart, "0.0.0")
-            .blockingGet();
+        this.yaml.deleteByNameAndVersion(chart, "0.0.0").blockingGet();
         final IndexYamlMapping mapping = this.mapping();
         MatcherAssert.assertThat(
             mapping.byChart(chart).size(),

@@ -28,6 +28,7 @@ import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.asto.blocking.BlockingStorage;
 import com.artipie.asto.memory.InMemoryStorage;
+import com.artipie.helm.http.HelmSlice;
 import com.artipie.helm.metadata.IndexYamlMapping;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.http.rs.StandardRs;
@@ -122,8 +123,7 @@ public class HelmSliceIT {
                     tomcatZeroEntry(expected),
                     tomcatZeroEntry(adapter)
                 ).entriesDiffering(),
-                ComposeMatchers.compose(new IsMapWithSize<String, Object>(new IsEqual<>(2)))
-                    .and(new IsMapContaining<>(new IsEqual<>("urls"), new IsAnything<>()))
+                ComposeMatchers.compose(new IsMapWithSize<String, Object>(new IsEqual<>(1)))
                     .and(new IsMapContaining<>(new IsEqual<>("created"), new IsAnything<>()))
             );
         } finally {
