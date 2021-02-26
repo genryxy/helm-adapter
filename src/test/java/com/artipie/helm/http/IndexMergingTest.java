@@ -118,7 +118,7 @@ final class IndexMergingTest {
 
     private IndexYamlMapping mergedIndex() {
         final IndexYamlMapping remote = this.index("merge/remote/index.yaml");
-        final IndexYamlMapping tmp = new IndexYamlMapping(
+        return new IndexYamlMapping(
             new PublisherAs(
                 new IndexMergingSlice.IndexMerging(this.source.toContent().get())
                     .mergeWith(remote.toContent().get())
@@ -126,6 +126,5 @@ final class IndexMergingTest {
             ).asciiString()
             .toCompletableFuture().join()
         );
-        return tmp;
     }
 }
