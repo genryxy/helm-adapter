@@ -21,10 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package com.artipie.helm.metadata;
+package com.artipie.helm.http;
 
 import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.test.TestResource;
+import com.artipie.helm.metadata.IndexYamlMapping;
 import java.util.stream.Collectors;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -33,7 +34,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * Test cases for {@link IndexMerging}.
+ * Test cases for {@link IndexMergingSlice.IndexMerging}.
  * @since 0.2
  */
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
@@ -118,7 +119,7 @@ final class IndexMergingTest {
         final IndexYamlMapping remote = this.index("merge/remote/index.yaml");
         return new IndexYamlMapping(
             new PublisherAs(
-                new IndexMerging(this.source)
+                new IndexMergingSlice.IndexMerging(this.source.toContent().get())
                     .mergeWith(remote.toContent().get())
                     .toCompletableFuture().join()
             ).asciiString()
