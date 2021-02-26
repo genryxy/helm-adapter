@@ -133,8 +133,12 @@ public final class IndexMergingSlice implements Slice {
 
     /**
      * Merging two `index.yaml` files in one file.
-     * If source `index.yaml` does not have some charts or versions of chart,
-     * `created` field for them should be updated during merge of the two indexes.
+     * <ul>
+     * <li> If source `index.yaml` does not have some charts or versions of chart,
+     * `created` field for them should be updated during merge of the two indexes. </li>
+     * <li> If source and remote have the same version of chart, information from
+     * remote one should be taken. </li>
+     * </ul>
      * @since 0.3
      */
     static final class IndexMerging {

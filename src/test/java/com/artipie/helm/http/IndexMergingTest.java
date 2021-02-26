@@ -96,12 +96,13 @@ final class IndexMergingTest {
         final String chart = "tomcat";
         final String version = "0.1.0";
         final String descr = "description";
+        final IndexYamlMapping target = this.index("merge/output/index.yaml");
         MatcherAssert.assertThat(
             this.mergedIndex()
                 .byChartAndVersion(chart, version)
                 .get().get(descr),
             new IsEqual<>(
-                this.source.byChartAndVersion(chart, version)
+                target.byChartAndVersion(chart, version)
                     .get().get(descr)
             )
         );
@@ -117,7 +118,7 @@ final class IndexMergingTest {
 
     private IndexYamlMapping mergedIndex() {
         final IndexYamlMapping remote = this.index("merge/remote/index.yaml");
-        return new IndexYamlMapping(
+        final IndexYamlMapping tmp = new IndexYamlMapping(
             new PublisherAs(
                 new IndexMergingSlice.IndexMerging(this.source.toContent().get())
                     .mergeWith(remote.toContent().get())
@@ -125,5 +126,6 @@ final class IndexMergingTest {
             ).asciiString()
             .toCompletableFuture().join()
         );
+        return tmp;
     }
 }
