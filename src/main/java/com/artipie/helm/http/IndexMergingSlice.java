@@ -91,21 +91,9 @@ public final class IndexMergingSlice implements Slice {
                     ignored -> {
                         final CompletionStage<Response> res;
                         if (matcher.matches()) {
-                            final Key location = Key.ROOT;
                             res = this.storage.exclusively(
-                                location,
-                                target -> this.storage.value(yaml)
-                                    .thenApply(IndexMerging::new)
-                                    .thenCombine(
-                                        temp.value(yaml),
-                                        IndexMerging::mergeWith
-                                    )
-                                    .thenCompose(Function.identity())
-                                    .thenCompose(ignore -> temp.list(location))
-                                    .thenCompose(
-                                        lst -> IndexMergingSlice.remove(temp, lst)
-                                            .thenApply(ignore -> StandardRs.OK)
-                                    )
+                                yaml,
+                                target -> IndexMergingSlice.checkAndMerge(target, yaml, temp)
                             );
                         } else {
                             res = CompletableFuture.completedFuture(
@@ -115,6 +103,41 @@ public final class IndexMergingSlice implements Slice {
                         return res;
                     }
                 )
+            );
+    }
+
+    /**
+     * Check existence of meta file in storage and merge.
+     * @param storage Storage with existed meta file. To this file another one will be merged
+     * @param meta Key for meta file
+     * @param substrg Temporary storage with meta file which information should be added
+     * @return Completable response for merge operation
+     */
+    private static CompletionStage<Response> checkAndMerge(
+        final Storage storage, final Key meta, final Storage substrg
+    ) {
+        return storage.exists(meta)
+            .thenCompose(
+                exists -> {
+                    final CompletionStage<Response> res;
+                    if (exists) {
+                        res = storage.value(meta)
+                            .thenApply(IndexMerging::new)
+                            .thenCombine(
+                                substrg.value(meta),
+                                IndexMerging::mergeWith
+                            )
+                            .thenCompose(Function.identity())
+                            .thenCompose(ignore -> substrg.list(meta))
+                            .thenCompose(
+                                lst -> IndexMergingSlice.remove(substrg, lst)
+                                    .thenApply(ignore -> StandardRs.OK)
+                            );
+                    } else {
+                        res = CompletableFuture.completedFuture(StandardRs.NOT_FOUND);
+                    }
+                    return res;
+                }
             );
     }
 
