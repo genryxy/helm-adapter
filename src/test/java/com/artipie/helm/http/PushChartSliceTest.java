@@ -62,16 +62,15 @@ final class PushChartSliceTest {
         this.storage = new InMemoryStorage();
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"/?updateIndex=false", "/"})
-    void shouldNotUpdateAfterUpload(final String uri) {
+    @Test
+    void shouldNotUpdateAfterUpload() {
         final String tgz = "ark-1.0.1.tgz";
         MatcherAssert.assertThat(
             "Wrong status, expected OK",
             new PushChartSlice(this.storage),
             new SliceHasResponse(
                 new RsHasStatus(RsStatus.OK),
-                new RequestLine(RqMethod.GET, uri),
+                new RequestLine(RqMethod.GET, "/?updateIndex=false"),
                 Headers.EMPTY,
                 new Content.From(new TestResource(tgz).asBytes())
             )
@@ -83,15 +82,16 @@ final class PushChartSliceTest {
         );
     }
 
-    @Test
-    void shouldUpdateIndexAfterUpload() {
+    @ParameterizedTest
+    @ValueSource(strings = {"/?updateIndex=true", "/"})
+    void shouldUpdateIndexAfterUpload(final String uri) {
         final String tgz = "ark-1.0.1.tgz";
         MatcherAssert.assertThat(
             "Wrong status, expected OK",
             new PushChartSlice(this.storage),
             new SliceHasResponse(
                 new RsHasStatus(RsStatus.OK),
-                new RequestLine(RqMethod.GET, "/?updateIndex=true"),
+                new RequestLine(RqMethod.GET, uri),
                 Headers.EMPTY,
                 new Content.From(new TestResource(tgz).asBytes())
             )

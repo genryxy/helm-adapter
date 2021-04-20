@@ -48,6 +48,7 @@ import org.reactivestreams.Publisher;
 
 /**
  * A Slice which accept archived charts, save them into a storage and trigger index.yml reindexing.
+ * By default it updates index file after uploading.
  * @since 0.2
  * @todo #13:30min Create an integration test
  *  We need an integration test for this class with described logic of upload from client side
@@ -82,7 +83,7 @@ final class PushChartSlice implements Slice {
                 tgz -> tgz.save(this.storage).flatMapCompletable(
                     key -> {
                         final Completable res;
-                        if (upd.isPresent() && upd.get().equals("true")) {
+                        if (!upd.isPresent() || upd.get().equals("true")) {
                             res = new IndexYaml(this.storage).update(tgz);
                         } else {
                             res = Completable.complete();
