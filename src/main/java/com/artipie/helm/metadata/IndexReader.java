@@ -67,7 +67,7 @@ public interface IndexReader {
         /**
          * Versions.
          */
-        static final String VRSNS = "versions:";
+        static final String VRSNS = "version:";
 
         /**
          * Entries.
