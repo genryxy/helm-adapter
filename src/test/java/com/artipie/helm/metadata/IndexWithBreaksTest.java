@@ -23,8 +23,8 @@
  */
 package com.artipie.helm.metadata;
 
-import com.artipie.asto.Content;
 import com.artipie.asto.Storage;
+import com.artipie.asto.blocking.BlockingStorage;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
 import java.util.Map;
@@ -37,21 +37,21 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
- * Test for {@link IndexReader.WithBreaks}.
+ * Test for {@link Index.WithBreaks}.
  * @since 0.3
  */
-final class IndexReaderWithBreaksTest {
+final class IndexWithBreaksTest {
     @ParameterizedTest
     @ValueSource(strings = {"index.yaml", "index/index-four-spaces.yaml"})
     void returnsVersionsForPackages(final String index) {
         final String tomcat = "tomcat";
         final String ark = "ark";
         final Storage storage = new InMemoryStorage();
-        storage.save(
+        new BlockingStorage(storage).save(
             IndexYaml.INDEX_YAML,
-            new Content.From(new TestResource(index).asBytes())
-        ).join();
-        final Map<String, Set<String>> vrsns = new IndexReader.WithBreaks(storage)
+            new TestResource(index).asBytes()
+        );
+        final Map<String, Set<String>> vrsns = new Index.WithBreaks(storage)
             .versionsByPackages()
             .toCompletableFuture().join();
         MatcherAssert.assertThat(
