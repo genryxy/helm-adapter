@@ -155,7 +155,9 @@ public interface Index {
                         if (name == null) {
                             indent = WithBreaks.lastPosOfSpaceInBegin(line);
                         }
-                        if (WithBreaks.lastPosOfSpaceInBegin(line) == indent) {
+                        if (WithBreaks.lastPosOfSpaceInBegin(line) == indent
+                            && line.trim().charAt(0) != '-'
+                        ) {
                             name = trimmed.replace(":", "");
                             vrns.put(name, new HashSet<>());
                         }
