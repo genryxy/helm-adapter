@@ -24,7 +24,8 @@
 package com.artipie.helm.metadata;
 
 import com.artipie.asto.Content;
-import java.time.ZonedDateTime;
+import com.artipie.helm.misc.DateTimeNow;
+import com.artipie.helm.misc.EmptyIndex;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -60,7 +61,7 @@ public final class IndexYamlMapping {
      * Ctor.
      */
     public IndexYamlMapping() {
-        this("apiVersion: v1\nentries:\n");
+        this(new EmptyIndex().asString());
     }
 
     /**
@@ -122,7 +123,7 @@ public final class IndexYamlMapping {
     ) {
         synchronized (this.mapping) {
             final Map<String, Object> entr = this.entries();
-            versions.forEach(vers -> vers.put("created", IndexYamlMapping.now()));
+            versions.forEach(vers -> vers.put("created", new DateTimeNow().asString()));
             if (entr.containsKey(name)) {
                 final List<Map<String, Object>> existed = this.byChart(name);
                 for (final Map<String, Object> vers : versions) {
@@ -151,7 +152,7 @@ public final class IndexYamlMapping {
         if (this.entries().isEmpty()) {
             res = Optional.empty();
         } else {
-            this.mapping.put("generated", IndexYamlMapping.now());
+            this.mapping.put("generated", new DateTimeNow().asString());
             res = Optional.of(new Content.From(this.toString().getBytes()));
         }
         return res;
@@ -163,13 +164,5 @@ public final class IndexYamlMapping {
         options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
         options.setPrettyFlow(true);
         return new Yaml(options).dump(this.mapping);
-    }
-
-    /**
-     * Obtains current time.
-     * @return Current time.
-     */
-    private static String now() {
-        return ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER);
     }
 }
