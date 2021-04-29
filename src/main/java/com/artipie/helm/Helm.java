@@ -30,6 +30,7 @@ import com.artipie.asto.fs.FileStorage;
 import com.artipie.helm.metadata.Index;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
+import com.artipie.helm.misc.DateTimeNow;
 import io.vertx.core.impl.ConcurrentHashSet;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -40,7 +41,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -245,7 +245,7 @@ public interface Helm {
         ) {
             final Map<String, Object> fields = new HashMap<>(tgz.chartYaml().fields());
             fields.putAll(tgz.metadata(Optional.empty()));
-            fields.put("created", Asto.now());
+            fields.put("created", new DateTimeNow().asString());
             final ChartYaml chart = new ChartYaml(fields);
             final String name = chart.name();
             pckgs.putIfAbsent(name, new ConcurrentHashSet<>());
@@ -358,14 +358,6 @@ public interface Helm {
          */
         private static int lastPosOfSpaceInBegin(final String line) {
             return line.length() - line.replaceAll("^\\s*", "").length();
-        }
-
-        /**
-         * Obtains current time.
-         * @return Current time.
-         */
-        private static String now() {
-            return ZonedDateTime.now().format(IndexYaml.TIME_FORMATTER);
         }
     }
 }
