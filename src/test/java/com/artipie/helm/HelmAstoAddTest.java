@@ -26,19 +26,27 @@ package com.artipie.helm;
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
+import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
 import com.artipie.helm.metadata.IndexYaml;
+import com.artipie.helm.metadata.IndexYamlMapping;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
+import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
+import org.hamcrest.core.IsEqual;
+import org.hamcrest.core.StringContains;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /**
  * Test for {@link Helm.Asto#add(Collection)}.
  * @since 0.3
+ * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
 final class HelmAstoAddTest {
@@ -50,44 +58,100 @@ final class HelmAstoAddTest {
     @BeforeEach
     void setUp() {
         this.storage = new InMemoryStorage();
-        this.storage.save(
-            IndexYaml.INDEX_YAML,
-            new Content.From(new TestResource("index/index-one-ark.yaml").asBytes())
-        ).join();
     }
 
     @Test
-    @Disabled
     void addInfoAboutNewVersionOfPackageAndNewPackage() {
         final String tomcat = "tomcat-0.4.1.tgz";
         final String ark = "ark-1.2.0.tgz";
         this.saveToStorage(tomcat);
         this.saveToStorage(ark);
+        this.saveSourceIndex();
         this.addFilesToIndex(tomcat, ark);
+        final IndexYamlMapping index = this.indexFromStrg();
+        MatcherAssert.assertThat(
+            "Some packages were missed",
+            index.entries().keySet(),
+            Matchers.containsInAnyOrder("tomcat", "ark")
+        );
+        MatcherAssert.assertThat(
+            "Contains not one version for chart `tomcat`",
+            index.byChart("tomcat").size(),
+            new IsEqual<>(1)
+        );
+        MatcherAssert.assertThat(
+            "Versions of chart `ark` are incorrect",
+            index.byChart("ark").stream().map(
+                entry -> entry.get("version")
+            ).collect(Collectors.toList()),
+            Matchers.containsInAnyOrder("1.0.1", "1.2.0")
+        );
     }
 
     @Test
-    @Disabled
-    void addInfoAboutNewPackage() {
+    void addInfoAboutNewPackageAndContainsAllFields() {
         final String tomcat = "tomcat-0.4.1.tgz";
         this.saveToStorage(tomcat);
+        this.saveSourceIndex();
         this.addFilesToIndex(tomcat);
+        final IndexYamlMapping index = this.indexFromStrg();
+        MatcherAssert.assertThat(
+            "Contains not one version for chart `tomcat`",
+            index.byChart("tomcat").size(),
+            new IsEqual<>(1)
+        );
+        MatcherAssert.assertThat(
+            index.byChart("tomcat").get(0).keySet(),
+            Matchers.containsInAnyOrder(
+                "maintainers", "appVersion", "urls", "apiVersion", "created",
+                "icon", "name", "digest", "description", "version", "home"
+            )
+        );
     }
 
     @Test
-    @Disabled
     void addInfoAboutNewVersion() {
         final String ark = "ark-1.2.0.tgz";
         this.saveToStorage(ark);
+        this.saveSourceIndex();
         this.addFilesToIndex(ark);
+        final IndexYamlMapping index = this.indexFromStrg();
+        MatcherAssert.assertThat(
+            "Existed version is absent",
+            index.byChartAndVersion("ark", "1.0.1").isPresent(),
+            new IsEqual<>(true)
+        );
+        MatcherAssert.assertThat(
+            "New version was not added",
+            index.byChartAndVersion("ark", "1.2.0").isPresent(),
+            new IsEqual<>(true)
+        );
     }
 
     @Test
-    @Disabled
-    void failsToAddInfoAboutExistedVersion() {
+    void addInfoAboutPackageWhenSourceIndexIsAbsent() {
         final String ark = "ark-1.0.1.tgz";
         this.saveToStorage(ark);
         this.addFilesToIndex(ark);
+        MatcherAssert.assertThat(
+            this.indexFromStrg().byChartAndVersion("ark", "1.0.1").isPresent(),
+            new IsEqual<>(true)
+        );
+    }
+
+    @Test
+    void failsToAddInfoAboutExistedVersion() {
+        final String ark = "ark-1.0.1.tgz";
+        this.saveToStorage(ark);
+        this.saveSourceIndex();
+        final CompletionException exc = Assertions.assertThrows(
+            CompletionException.class,
+            () -> this.addFilesToIndex(ark)
+        );
+        MatcherAssert.assertThat(
+            exc.getMessage(),
+            new StringContains("Failed to write to index `ark` with version `1.0.1`")
+        );
     }
 
     private void saveToStorage(final String file) {
@@ -102,5 +166,19 @@ final class HelmAstoAddTest {
             .map(Key.From::new)
             .collect(Collectors.toList());
         new Helm.Asto(this.storage).add(keys).toCompletableFuture().join();
+    }
+
+    private IndexYamlMapping indexFromStrg() {
+        return new IndexYamlMapping(
+            new PublisherAs(this.storage.value(IndexYaml.INDEX_YAML).join())
+                .asciiString().toCompletableFuture().join()
+        );
+    }
+
+    private void saveSourceIndex() {
+        this.storage.save(
+            IndexYaml.INDEX_YAML,
+            new Content.From(new TestResource("index/index-one-ark.yaml").asBytes())
+        ).join();
     }
 }
