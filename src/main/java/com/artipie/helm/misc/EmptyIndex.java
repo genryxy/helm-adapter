@@ -24,7 +24,6 @@
 package com.artipie.helm.misc;
 
 import com.artipie.asto.Content;
-import com.artipie.helm.misc.DateTimeNow;
 import java.nio.charset.StandardCharsets;
 
 /**
