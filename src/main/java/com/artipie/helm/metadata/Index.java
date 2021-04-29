@@ -90,7 +90,7 @@ public interface Index {
          * Ctor.
          * @param storage Storage file
          */
-        WithBreaks(final Storage storage) {
+        public WithBreaks(final Storage storage) {
             this.storage = storage;
         }
 
