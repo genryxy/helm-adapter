@@ -25,6 +25,7 @@ package com.artipie.helm.metadata;
 
 import com.artipie.asto.Content;
 import com.artipie.helm.misc.DateTimeNow;
+import com.artipie.helm.misc.EmptyIndex;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
