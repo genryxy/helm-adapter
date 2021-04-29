@@ -58,6 +58,10 @@ import org.apache.commons.lang3.tuple.Pair;
 /**
  * Helm repository.
  * @since 0.3
+ * @todo #109:30min Refactor Helm class.
+ *  Now this class is too big, therefore it should be refactored
+ *  by extracting some functionality. Probably to extract some classes which
+ *  would be responsible for writing info about charts to index file.
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  * @checkstyle CyclomaticComplexityCheck (500 lines)
  * @checkstyle ExecutableStatementCountCheck (500 lines)
