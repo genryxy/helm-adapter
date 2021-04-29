@@ -23,6 +23,8 @@
  */
 package com.artipie.helm;
 
+import com.artipie.asto.Content;
+import com.artipie.asto.Copy;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.asto.ext.PublisherAs;
@@ -31,6 +33,7 @@ import com.artipie.helm.metadata.Index;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
 import com.artipie.helm.misc.DateTimeNow;
+import com.artipie.helm.misc.EmptyIndex;
 import io.vertx.core.impl.ConcurrentHashSet;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -40,20 +43,21 @@ import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.cactoos.list.ListOf;
 
 /**
  * Helm repository.
@@ -65,6 +69,7 @@ import org.apache.commons.lang3.tuple.Pair;
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  * @checkstyle CyclomaticComplexityCheck (500 lines)
  * @checkstyle ExecutableStatementCountCheck (500 lines)
+ * @checkstyle NPathComplexityCheck (500 lines)
  */
 public interface Helm {
     /**
@@ -88,7 +93,11 @@ public interface Helm {
      * Implementation of {@link Helm} for abstract storage.
      * @since 0.3
      */
-    @SuppressWarnings({"PMD.AvoidDuplicateLiterals", "PMD.AvoidDeeplyNestedIfStmts"})
+    @SuppressWarnings({
+        "PMD.AvoidDuplicateLiterals",
+        "PMD.AvoidDeeplyNestedIfStmts",
+        "PMD.NPathComplexity"
+    })
     final class Asto implements Helm {
         /**
          * Versions.
@@ -121,6 +130,8 @@ public interface Helm {
         @Override
         public CompletionStage<Void> add(final Collection<Key> charts) {
             final Map<String, Set<Pair<String, ChartYaml>>> pckgs = new ConcurrentHashMap<>();
+            final AtomicReference<Key> outidx = new AtomicReference<>();
+            final AtomicReference<Path> tmpdir = new AtomicReference<>();
             return CompletableFuture.allOf(
                 charts.stream().map(
                     key -> this.storage.value(key)
@@ -133,20 +144,56 @@ public interface Helm {
                 nothing -> {
                     try {
                         final String prefix = "index-";
-                        final Path tmp = Files.createTempDirectory(prefix);
-                        final Path file = Files.createTempFile(tmp, prefix, ".yaml");
-                        final Storage tmpstrg = new FileStorage(tmp);
-                        final Key tmpidx = new Key.From(file.getFileName().toString());
-                        return this.storage.value(IndexYaml.INDEX_YAML)
+                        tmpdir.set(Files.createTempDirectory(prefix));
+                        final Path source = Files.createTempFile(tmpdir.get(), prefix, ".yaml");
+                        final Path out = Files.createTempFile(tmpdir.get(), prefix, "-out.yaml");
+                        final Storage tmpstrg = new FileStorage(tmpdir.get());
+                        outidx.set(new Key.From(out.getFileName().toString()));
+                        return this.storage.exists(IndexYaml.INDEX_YAML)
                             .thenCompose(
-                                cont -> tmpstrg.save(tmpidx, cont)
-                            ).thenCompose(noth -> this.addChartsToIndex(file, pckgs))
-                            .thenCompose(noth -> tmpstrg.value(tmpidx));
+                                exists -> {
+                                    final CompletionStage<Content> res;
+                                    if (exists) {
+                                        res = this.storage.value(IndexYaml.INDEX_YAML);
+                                    } else {
+                                        res = CompletableFuture.completedFuture(
+                                            new EmptyIndex().asContent()
+                                        );
+                                    }
+                                    return res;
+                                }
+                            ).thenCompose(
+                                cont -> tmpstrg.save(
+                                    new Key.From(source.getFileName().toString()), cont
+                                )
+                            ).thenCompose(noth -> this.addChartsToIndex(source, out, pckgs))
+                            .thenApply(noth -> tmpstrg);
                     } catch (final IOException exc) {
                         throw new UncheckedIOException(exc);
                     }
                 }
-            ).thenCompose(index -> this.storage.save(IndexYaml.INDEX_YAML, index));
+            ).thenCompose(
+                tmpstrg -> this.moveFromTempStorageAndDelete(tmpstrg, outidx.get(), tmpdir.get())
+            );
+        }
+
+        /**
+         * Moves index file from temporary storage to real and deletes this file
+         * from temporary storage.
+         * @param tmpstrg Temporary storage with index file
+         * @param outidx Key to index file in temporary storage
+         * @param tmpdir Temporary directory
+         * @return Result of completion
+         */
+        private CompletionStage<Void> moveFromTempStorageAndDelete(
+            final Storage tmpstrg,
+            final Key outidx,
+            final Path tmpdir
+        ) {
+            return new Copy(tmpstrg, new ListOf<>(outidx)).copy(this.storage)
+                .thenCompose(noth -> this.storage.move(outidx, IndexYaml.INDEX_YAML))
+                .thenApply(noth -> FileUtils.deleteQuietly(tmpdir.toFile()))
+                .thenCompose(ignore -> CompletableFuture.allOf());
         }
 
         /**
@@ -160,7 +207,8 @@ public interface Helm {
          * write remained versions from packages. When we read next line after end of
          * `entries:` section from source index, we write info about remained charts
          * in packages.
-         * @param file Path to temporary file with index
+         * @param source Path to temporary file with index
+         * @param out Path to temporary file in which new index would be written
          * @param pckgs Packages collection which contains info about passed packages for
          *  adding to index file. There is a version and chart yaml for each package.
          * @return Result of completion
@@ -168,20 +216,20 @@ public interface Helm {
          */
         @SuppressWarnings("PMD.AssignmentInOperand")
         private CompletionStage<Void> addChartsToIndex(
-            final Path file,
+            final Path source,
+            final Path out,
             final Map<String, Set<Pair<String, ChartYaml>>> pckgs
         ) {
-            return new Index.WithBreaks(this.storage)
-                .versionsByPackages()
+            return this.storage.exists(IndexYaml.INDEX_YAML)
+                .thenCompose(this::versionsByPckgs)
                 .thenCompose(
                     vrsns -> {
-                        final Path tmp = Paths.get(UUID.randomUUID().toString());
                         try (
                             BufferedReader br = new BufferedReader(
-                                new InputStreamReader(Files.newInputStream(file))
+                                new InputStreamReader(Files.newInputStream(source))
                             );
                             BufferedWriter bufw = new BufferedWriter(
-                                new OutputStreamWriter(Files.newOutputStream(tmp))
+                                new OutputStreamWriter(Files.newOutputStream(out))
                             )
                         ) {
                             String line;
@@ -225,12 +273,31 @@ public interface Helm {
                                 bufw.write(line);
                                 bufw.newLine();
                             }
+                            if (entrs) {
+                                Asto.writeRemainedChartsAfterCopyIndex(indent, pckgs, bufw);
+                            }
                         } catch (final IOException exc) {
                             throw new UncheckedIOException(exc);
                         }
                         return CompletableFuture.allOf();
                     }
                 );
+        }
+
+        /**
+         * Obtains versions by packages from source index file or empty collection in case of
+         * absence source index file.
+         * @param exists Does source index file exist?
+         * @return Versions by packages.
+         */
+        private CompletionStage<Map<String, Set<String>>> versionsByPckgs(final boolean exists) {
+            final CompletionStage<Map<String, Set<String>>> res;
+            if (exists) {
+                res = new Index.WithBreaks(this.storage).versionsByPackages();
+            } else {
+                res = CompletableFuture.completedFuture(new HashMap<>());
+            }
+            return res;
         }
 
         /**

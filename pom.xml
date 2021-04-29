@@ -91,6 +91,11 @@ SOFTWARE.
       <artifactId>commons-codec</artifactId>
       <version>1.14</version>
     </dependency>
+    <dependency>
+      <groupId>commons-io</groupId>
+      <artifactId>commons-io</artifactId>
+      <version>2.6</version>
+    </dependency>
     <!-- Test -->
     <dependency>
       <groupId>org.junit.jupiter</groupId>
