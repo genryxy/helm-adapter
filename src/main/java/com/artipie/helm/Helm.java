@@ -32,6 +32,8 @@ import com.artipie.asto.fs.FileStorage;
 import com.artipie.helm.metadata.Index;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
+import com.artipie.helm.metadata.ParsedChartName;
+import com.artipie.helm.metadata.YamlWriter;
 import com.artipie.helm.misc.DateTimeNow;
 import com.artipie.helm.misc.EmptyIndex;
 import io.vertx.core.impl.ConcurrentHashSet;
@@ -54,7 +56,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.NotImplementedException;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.cactoos.list.ListOf;
@@ -69,7 +70,6 @@ import org.cactoos.list.ListOf;
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  * @checkstyle CyclomaticComplexityCheck (500 lines)
  * @checkstyle ExecutableStatementCountCheck (500 lines)
- * @checkstyle NPathComplexityCheck (500 lines)
  */
 public interface Helm {
     /**
@@ -93,11 +93,7 @@ public interface Helm {
      * Implementation of {@link Helm} for abstract storage.
      * @since 0.3
      */
-    @SuppressWarnings({
-        "PMD.AvoidDuplicateLiterals",
-        "PMD.AvoidDeeplyNestedIfStmts",
-        "PMD.NPathComplexity"
-    })
+    @SuppressWarnings("PMD.AvoidDuplicateLiterals")
     final class Asto implements Helm {
         /**
          * Versions.
@@ -212,7 +208,6 @@ public interface Helm {
          * @param pckgs Packages collection which contains info about passed packages for
          *  adding to index file. There is a version and chart yaml for each package.
          * @return Result of completion
-         * @checkstyle NestedIfDepthCheck (70 lines)
          */
         @SuppressWarnings("PMD.AssignmentInOperand")
         private CompletionStage<Void> addChartsToIndex(
@@ -235,24 +230,20 @@ public interface Helm {
                             String line;
                             boolean entrs = false;
                             String name = null;
-                            int indent = 2;
+                            YamlWriter writer = new YamlWriter(bufw, 2);
                             while ((line = br.readLine()) != null) {
                                 final String trimmed = line.trim();
                                 if (!entrs) {
                                     entrs = trimmed.equals(Asto.ENTRS);
                                 }
-                                if (entrs && trimmed.endsWith(":")
-                                    && !trimmed.equals(Asto.ENTRS)
-                                ) {
+                                if (entrs && new ParsedChartName(line).valid()) {
                                     if (name == null) {
-                                        indent = Asto.lastPosOfSpaceInBegin(line);
+                                        writer = new YamlWriter(
+                                            bufw, Asto.lastPosOfSpaceInBegin(line)
+                                        );
                                     }
-                                    if (Asto.lastPosOfSpaceInBegin(line) == indent) {
-                                        if (name != null) {
-                                            Asto.writeRemainedVersionsOfChartIfExist(
-                                                indent, name, pckgs, bufw
-                                            );
-                                        }
+                                    if (Asto.lastPosOfSpaceInBegin(line) == writer.indent()) {
+                                        Asto.writeRemainedVersionsOfChart(name, pckgs, writer);
                                         name = trimmed.replace(":", "");
                                     }
                                 }
@@ -262,19 +253,15 @@ public interface Helm {
                                 if (entrs && name != null
                                     && Asto.lastPosOfSpaceInBegin(line) == 0
                                 ) {
-                                    if (pckgs.containsKey(name)) {
-                                        Asto.writeRemainedVersionsOfChartIfExist(
-                                            indent, name, pckgs, bufw
-                                        );
-                                    }
-                                    Asto.writeRemainedChartsAfterCopyIndex(indent, pckgs, bufw);
+                                    Asto.writeRemainedVersionsOfChart(name, pckgs, writer);
+                                    Asto.writeRemainedChartsAfterCopyIndex(pckgs, writer);
                                     entrs = false;
                                 }
-                                bufw.write(line);
-                                bufw.newLine();
+                                writer.write(line);
+                                writer.newLine();
                             }
                             if (entrs) {
-                                Asto.writeRemainedChartsAfterCopyIndex(indent, pckgs, bufw);
+                                Asto.writeRemainedChartsAfterCopyIndex(pckgs, writer);
                             }
                         } catch (final IOException exc) {
                             throw new UncheckedIOException(exc);
@@ -348,66 +335,57 @@ public interface Helm {
 
         /**
          * Write remained versions of passed chart in collection in case of their existence.
-         * @param indent Required indent
          * @param name Chart name for which remained versions are checked
          * @param pckgs Packages collection which contains info about passed packages for
          *  adding to index file. There is a version and chart yaml for each package.
-         * @param bufw Buffered writer
+         * @param writer Yaml writer
          * @throws IOException In case of exception during writing
-         * @checkstyle ParameterNumberCheck (7 lines)
          */
-        private static void writeRemainedVersionsOfChartIfExist(
-            final int indent,
+        private static void writeRemainedVersionsOfChart(
             final String name,
             final Map<String, Set<Pair<String, ChartYaml>>> pckgs,
-            final BufferedWriter bufw
+            final YamlWriter writer
         ) throws IOException {
-            for (final Pair<String, ChartYaml> pair : pckgs.get(name)) {
-                final String prefix = StringUtils.repeat(' ', indent * 3);
-                final String str;
-                str = new IndexYamlMapping(pair.getRight().fields()).toString();
-                bufw.write(String.format("%s-", StringUtils.repeat(' ', indent * 2)));
-                bufw.newLine();
-                for (final String entry : str.split("[\\n\\r]+")) {
-                    bufw.write(String.format("%s%s", prefix, entry));
-                    bufw.newLine();
+            if (name != null && pckgs.containsKey(name)) {
+                for (final Pair<String, ChartYaml> pair : pckgs.get(name)) {
+                    writer.writeWithSpace("-", writer.indent() * 2);
+                    writer.newLine();
+                    final String str = new IndexYamlMapping(pair.getRight().fields()).toString();
+                    for (final String entry : str.split("[\\n\\r]+")) {
+                        // @checkstyle MagicNumberCheck (1 line)
+                        writer.writeWithSpace(entry, writer.indent() * 3);
+                        writer.newLine();
+                    }
                 }
+                pckgs.remove(name);
             }
-            pckgs.remove(name);
         }
 
         /**
          * Write remained versions for all charts in collection in case of their existence.
-         * @param indent Required indent
          * @param pckgs Packages collection which contains info about passed packages for
          *  adding to index file. There is a version and chart yaml for each package.
-         * @param bufw Buffered writer
+         * @param writer Yaml writer
          */
         private static void writeRemainedChartsAfterCopyIndex(
-            final int indent,
             final Map<String, Set<Pair<String, ChartYaml>>> pckgs,
-            final BufferedWriter bufw
+            final YamlWriter writer
         ) {
-            final char space = ' ';
             pckgs.forEach(
                 (chart, pairs) -> {
                     try {
-                        bufw.write(
-                            String.format("%s%s:", StringUtils.repeat(space, indent), chart)
-                        );
-                        bufw.newLine();
+                        writer.writeWithSpace(String.format("%s:", chart), writer.indent());
+                        writer.newLine();
                         for (final Pair<String, ChartYaml> pair : pairs) {
-                            final String prefix = StringUtils.repeat(space, indent * 3);
-                            bufw.write(
-                                String.format("%s-", StringUtils.repeat(space, indent * 2))
-                            );
-                            bufw.newLine();
+                            writer.writeWithSpace("- ", writer.indent() * 2);
+                            writer.newLine();
                             final String yaml;
                             yaml = new IndexYamlMapping(pair.getRight().fields()).toString();
                             final String[] lines = yaml.split("[\\n\\r]+");
                             for (final String line : lines) {
-                                bufw.write(String.format("%s%s", prefix, line));
-                                bufw.newLine();
+                                // @checkstyle MagicNumberCheck (1 line)
+                                writer.writeWithSpace(line, writer.indent() * 3);
+                                writer.newLine();
                             }
                         }
                     } catch (final IOException exc) {

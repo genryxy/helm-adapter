@@ -155,13 +155,11 @@ public interface Index {
                     if (!entrs) {
                         entrs = trimmed.equals(WithBreaks.ENTRS);
                     }
-                    if (entrs && trimmed.endsWith(":") && !trimmed.equals(WithBreaks.ENTRS)) {
+                    if (new ParsedChartName(line).valid()) {
                         if (name == null) {
                             indent = WithBreaks.lastPosOfSpaceInBegin(line);
                         }
-                        if (WithBreaks.lastPosOfSpaceInBegin(line) == indent
-                            && line.trim().charAt(0) != '-'
-                        ) {
+                        if (WithBreaks.lastPosOfSpaceInBegin(line) == indent) {
                             name = trimmed.replace(":", "");
                             vrns.put(name, new HashSet<>());
                         }
