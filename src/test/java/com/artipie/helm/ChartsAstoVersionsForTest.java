@@ -27,11 +27,11 @@ import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.cactoos.map.MapEntry;
-import org.cactoos.map.MapOf;
-import org.cactoos.scalar.Unchecked;
 import org.cactoos.set.SetOf;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsEqual;
@@ -40,7 +40,6 @@ import org.junit.jupiter.api.Test;
 /**
  * Test for {@link Charts.Asto}.
  * @since 0.3
- * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
 final class ChartsAstoVersionsForTest {
     @Test
@@ -51,6 +50,9 @@ final class ChartsAstoVersionsForTest {
         final String tomcat = "tomcat-0.4.1.tgz";
         Stream.of(arkone, arktwo, tomcat)
             .forEach(tgz -> new TestResource(tgz).saveTo(storage));
+        final Map<String, Set<String>> expected = new HashMap<>();
+        expected.put("tomcat", new SetOf<String>("0.4.1"));
+        expected.put("ark", new SetOf<String>("1.2.0", "1.0.1"));
         MatcherAssert.assertThat(
             new Charts.Asto(storage)
                 .versionsFor(
@@ -58,18 +60,7 @@ final class ChartsAstoVersionsForTest {
                         .map(Key.From::new)
                         .collect(Collectors.toList())
                 ).toCompletableFuture().join(),
-            new IsEqual<>(
-                new MapOf<>(
-                    new MapEntry<>(
-                        "tomcat",
-                        new Unchecked<>(() -> new SetOf<>("0.4.1")).value()
-                    ),
-                    new MapEntry<>(
-                        "ark",
-                        new Unchecked<>(() -> new SetOf<>("1.2.0", "1.0.1")).value()
-                    )
-                )
-            )
+            new IsEqual<>(expected)
         );
     }
 }
