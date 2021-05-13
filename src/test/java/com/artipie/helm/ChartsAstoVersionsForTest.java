@@ -59,12 +59,16 @@ final class ChartsAstoVersionsForTest {
                         .collect(Collectors.toList())
                 ).toCompletableFuture().join(),
             new IsEqual<>(
-                new Unchecked<>(
-                    () -> new MapOf<>(
-                        new MapEntry<>("tomcat", new SetOf<>("0.4.1")),
-                        new MapEntry<>("ark", new SetOf<>("1.2.0", "1.0.1"))
+                new MapOf<>(
+                    new MapEntry<>(
+                        "tomcat",
+                        new Unchecked<>(() -> new SetOf<>("0.4.1")).value()
+                    ),
+                    new MapEntry<>(
+                        "ark",
+                        new Unchecked<>(() -> new SetOf<>("1.2.0", "1.0.1")).value()
                     )
-                ).value()
+                )
             )
         );
     }
