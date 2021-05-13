@@ -42,6 +42,8 @@ import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Test for {@link Helm.Asto#add(Collection)}.
@@ -60,13 +62,14 @@ final class HelmAstoAddTest {
         this.storage = new InMemoryStorage();
     }
 
-    @Test
-    void addInfoAboutNewVersionOfPackageAndNewPackage() {
+    @ParameterizedTest
+    @ValueSource(strings = {"index-one-ark.yaml", "index-one-ark-four-spaces.yaml"})
+    void addInfoAboutNewVersionOfPackageAndNewPackage(final String yaml) {
         final String tomcat = "tomcat-0.4.1.tgz";
         final String ark = "ark-1.2.0.tgz";
         this.saveToStorage(tomcat);
         this.saveToStorage(ark);
-        this.saveSourceIndex();
+        this.saveSourceIndex(yaml);
         this.addFilesToIndex(tomcat, ark);
         final IndexYamlMapping index = this.indexFromStrg();
         MatcherAssert.assertThat(
@@ -88,11 +91,12 @@ final class HelmAstoAddTest {
         );
     }
 
-    @Test
-    void addInfoAboutNewPackageAndContainsAllFields() {
+    @ParameterizedTest
+    @ValueSource(strings = {"index-one-ark.yaml", "index-one-ark-four-spaces.yaml"})
+    void addInfoAboutNewPackageAndContainsAllFields(final String yaml) {
         final String tomcat = "tomcat-0.4.1.tgz";
         this.saveToStorage(tomcat);
-        this.saveSourceIndex();
+        this.saveSourceIndex(yaml);
         this.addFilesToIndex(tomcat);
         final IndexYamlMapping index = this.indexFromStrg();
         MatcherAssert.assertThat(
@@ -109,11 +113,12 @@ final class HelmAstoAddTest {
         );
     }
 
-    @Test
-    void addInfoAboutNewVersion() {
+    @ParameterizedTest
+    @ValueSource(strings = {"index-one-ark.yaml", "index-one-ark-four-spaces.yaml"})
+    void addInfoAboutNewVersion(final String yaml) {
         final String ark = "ark-1.2.0.tgz";
         this.saveToStorage(ark);
-        this.saveSourceIndex();
+        this.saveSourceIndex(yaml);
         this.addFilesToIndex(ark);
         final IndexYamlMapping index = this.indexFromStrg();
         MatcherAssert.assertThat(
@@ -143,7 +148,7 @@ final class HelmAstoAddTest {
     void failsToAddInfoAboutExistedVersion() {
         final String ark = "ark-1.0.1.tgz";
         this.saveToStorage(ark);
-        this.saveSourceIndex();
+        this.saveSourceIndex("index-one-ark.yaml");
         final CompletionException exc = Assertions.assertThrows(
             CompletionException.class,
             () -> this.addFilesToIndex(ark)
@@ -175,10 +180,12 @@ final class HelmAstoAddTest {
         );
     }
 
-    private void saveSourceIndex() {
+    private void saveSourceIndex(final String name) {
         this.storage.save(
             IndexYaml.INDEX_YAML,
-            new Content.From(new TestResource("index/index-one-ark.yaml").asBytes())
+            new Content.From(
+                new TestResource(String.format("index/%s", name)).asBytes()
+            )
         ).join();
     }
 }
