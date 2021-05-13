@@ -47,6 +47,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -90,10 +91,20 @@ public interface Helm {
     CompletionStage<Void> add(Collection<Key> charts);
 
     /**
+     * Remove info from index about charts.
+     * @param charts Keys for charts which should be removed from index file
+     * @return Result of completion
+     */
+    CompletionStage<Void> delete(Collection<Key> charts);
+
+    /**
      * Implementation of {@link Helm} for abstract storage.
      * @since 0.3
      */
-    @SuppressWarnings("PMD.AvoidDuplicateLiterals")
+    @SuppressWarnings({
+        "PMD.AvoidDuplicateLiterals",
+        "PMD.TooManyMethods"
+    })
     final class Asto implements Helm {
         /**
          * Versions.
@@ -171,6 +182,98 @@ public interface Helm {
             ).thenCompose(
                 tmpstrg -> this.moveFromTempStorageAndDelete(tmpstrg, outidx.get(), tmpdir.get())
             );
+        }
+
+        @Override
+        public CompletionStage<Void> delete(final Collection<Key> charts) {
+            final CompletionStage<Void> res;
+            if (charts.isEmpty()) {
+                res = CompletableFuture.allOf();
+            } else {
+                final Map<String, Set<String>> pckgs = new ConcurrentHashMap<>();
+                final AtomicReference<Key> outidx = new AtomicReference<>();
+                final AtomicReference<Path> dir = new AtomicReference<>();
+                res = CompletableFuture.allOf(
+                    charts.stream().map(
+                        key -> this.storage.value(key)
+                            .thenApply(PublisherAs::new)
+                            .thenCompose(PublisherAs::bytes)
+                            .thenApply(TgzArchive::new)
+                            .thenAccept(
+                                tgz -> {
+                                    final ChartYaml chart = tgz.chartYaml();
+                                    pckgs.putIfAbsent(chart.name(), new HashSet<>());
+                                    pckgs.get(chart.name()).add(chart.version());
+                                }
+                            )
+                    ).toArray(CompletableFuture[]::new)
+                ).thenCombine(
+                    this.storage.exists(IndexYaml.INDEX_YAML).thenCompose(this::versionsByPckgs),
+                    (ignore, fromidx) -> {
+                        checkExistenceChartsToDelete(fromidx, pckgs);
+                        return null;
+                    }
+                ).thenCompose(
+                    nothing -> {
+                        try {
+                            final String prefix = "index-";
+                            dir.set(Files.createTempDirectory(prefix));
+                            final Path source = Files.createTempFile(dir.get(), prefix, ".yaml");
+                            final Path out = Files.createTempFile(dir.get(), prefix, "-out.yaml");
+                            final Storage tmpstrg = new FileStorage(dir.get());
+                            outidx.set(new Key.From(out.getFileName().toString()));
+                            return this.storage.value(IndexYaml.INDEX_YAML)
+                                .thenCompose(
+                                    cont -> tmpstrg.save(
+                                        new Key.From(source.getFileName().toString()), cont
+                                    )
+                                ).thenCompose(
+                                    noth -> {
+                                        throw new NotImplementedException("not implemented yet");
+                                    }
+                                ).thenApply(noth -> tmpstrg);
+                        } catch (final IOException exc) {
+                            throw new UncheckedIOException(exc);
+                        }
+                    }
+                ).thenCompose(
+                    tmpstrg -> this.moveFromTempStorageAndDelete(tmpstrg, outidx.get(), dir.get())
+                );
+            }
+            return res;
+        }
+
+        /**
+         * Checks whether all charts with specified versions exist in index file,
+         * in case of absence one of them an exception will be thrown.
+         * @param fromidx Charts with specified versions from index file
+         * @param todelete Charts with specified versions which should be deleted
+         */
+        private static void checkExistenceChartsToDelete(
+            final Map<String, Set<String>> fromidx,
+            final Map<String, Set<String>> todelete
+        ) {
+            for (final String pckg : todelete.keySet()) {
+                if (!fromidx.containsKey(pckg)) {
+                    throw new IllegalStateException(
+                        String.format(
+                            "Failed to delete package `%s` as it is absent in index", pckg
+                        )
+                    );
+                }
+                for (final String vrsn : todelete.get(pckg)) {
+                    if (!fromidx.get(pckg).contains(vrsn)) {
+                        // @checkstyle LineLengthCheck (3 lines)
+                        throw new IllegalStateException(
+                            String.format(
+                                "Failed to delete package `%s` with version `%s` as it is absent in index",
+                                pckg,
+                                vrsn
+                            )
+                        );
+                    }
+                }
+            }
         }
 
         /**
