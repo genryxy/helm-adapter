@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.cactoos.map.MapEntry;
 import org.cactoos.map.MapOf;
+import org.cactoos.scalar.Unchecked;
 import org.cactoos.set.SetOf;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsEqual;
@@ -39,6 +40,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Test for {@link Charts.Asto}.
  * @since 0.3
+ * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
 final class ChartsAstoVersionsForTest {
     @Test
@@ -57,10 +59,12 @@ final class ChartsAstoVersionsForTest {
                         .collect(Collectors.toList())
                 ).toCompletableFuture().join(),
             new IsEqual<>(
-                new MapOf<>(
-                    new MapEntry<>("tomcat", new SetOf<>("0.4.1")),
-                    new MapEntry<>("ark", new SetOf<>("1.2.0", "1.0.1"))
-                )
+                new Unchecked<>(
+                    () -> new MapOf<>(
+                        new MapEntry<>("tomcat", new SetOf<>("0.4.1")),
+                        new MapEntry<>("ark", new SetOf<>("1.2.0", "1.0.1"))
+                    )
+                ).value()
             )
         );
     }
