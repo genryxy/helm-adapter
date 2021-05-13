@@ -27,38 +27,23 @@ import com.artipie.asto.Content;
 import com.artipie.asto.Copy;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
-import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.fs.FileStorage;
 import com.artipie.helm.metadata.Index;
 import com.artipie.helm.metadata.IndexYaml;
-import com.artipie.helm.metadata.IndexYamlMapping;
-import com.artipie.helm.metadata.ParsedChartName;
-import com.artipie.helm.metadata.YamlWriter;
-import com.artipie.helm.misc.DateTimeNow;
 import com.artipie.helm.misc.EmptyIndex;
-import io.vertx.core.impl.ConcurrentHashSet;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.NotImplementedException;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 import org.cactoos.list.ListOf;
 
 /**
@@ -69,8 +54,6 @@ import org.cactoos.list.ListOf;
  *  by extracting some functionality. Probably to extract some classes which
  *  would be responsible for writing info about charts to index file.
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
- * @checkstyle CyclomaticComplexityCheck (500 lines)
- * @checkstyle ExecutableStatementCountCheck (500 lines)
  */
 public interface Helm {
     /**
@@ -101,21 +84,8 @@ public interface Helm {
      * Implementation of {@link Helm} for abstract storage.
      * @since 0.3
      */
-    @SuppressWarnings({
-        "PMD.AvoidDuplicateLiterals",
-        "PMD.TooManyMethods"
-    })
+    @SuppressWarnings("PMD.AvoidDuplicateLiterals")
     final class Asto implements Helm {
-        /**
-         * Versions.
-         */
-        static final String VRSNS = "version:";
-
-        /**
-         * Entries.
-         */
-        static final String ENTRS = "entries:";
-
         /**
          * Storage.
          */
@@ -136,52 +106,46 @@ public interface Helm {
 
         @Override
         public CompletionStage<Void> add(final Collection<Key> charts) {
-            final Map<String, Set<Pair<String, ChartYaml>>> pckgs = new ConcurrentHashMap<>();
             final AtomicReference<Key> outidx = new AtomicReference<>();
-            final AtomicReference<Path> tmpdir = new AtomicReference<>();
-            return CompletableFuture.allOf(
-                charts.stream().map(
-                    key -> this.storage.value(key)
-                        .thenApply(PublisherAs::new)
-                        .thenCompose(PublisherAs::bytes)
-                        .thenApply(TgzArchive::new)
-                        .thenAccept(tgz -> Asto.addChartFromTgzToPackages(tgz, pckgs))
-                ).toArray(CompletableFuture[]::new)
-            ).thenCompose(
-                nothing -> {
-                    try {
-                        final String prefix = "index-";
-                        tmpdir.set(Files.createTempDirectory(prefix));
-                        final Path source = Files.createTempFile(tmpdir.get(), prefix, ".yaml");
-                        final Path out = Files.createTempFile(tmpdir.get(), prefix, "-out.yaml");
-                        final Storage tmpstrg = new FileStorage(tmpdir.get());
-                        outidx.set(new Key.From(out.getFileName().toString()));
-                        return this.storage.exists(IndexYaml.INDEX_YAML)
-                            .thenCompose(
-                                exists -> {
-                                    final CompletionStage<Content> res;
-                                    if (exists) {
-                                        res = this.storage.value(IndexYaml.INDEX_YAML);
-                                    } else {
-                                        res = CompletableFuture.completedFuture(
-                                            new EmptyIndex().asContent()
-                                        );
+            final AtomicReference<Path> dir = new AtomicReference<>();
+            return new Charts.Asto(this.storage)
+                .versionsAndYamlFor(charts)
+                .thenCompose(
+                    pckgs -> {
+                        try {
+                            final String prfx = "index-";
+                            dir.set(Files.createTempDirectory(prfx));
+                            final Path source = Files.createTempFile(dir.get(), prfx, ".yaml");
+                            final Path out = Files.createTempFile(dir.get(), prfx, "-out.yaml");
+                            final Storage tmpstrg = new FileStorage(dir.get());
+                            outidx.set(new Key.From(out.getFileName().toString()));
+                            return this.storage.exists(IndexYaml.INDEX_YAML)
+                                .thenCompose(
+                                    exists -> {
+                                        final CompletionStage<Content> res;
+                                        if (exists) {
+                                            res = this.storage.value(IndexYaml.INDEX_YAML);
+                                        } else {
+                                            res = CompletableFuture.completedFuture(
+                                                new EmptyIndex().asContent()
+                                            );
+                                        }
+                                        return res;
                                     }
-                                    return res;
-                                }
-                            ).thenCompose(
-                                cont -> tmpstrg.save(
-                                    new Key.From(source.getFileName().toString()), cont
-                                )
-                            ).thenCompose(noth -> this.addChartsToIndex(source, out, pckgs))
-                            .thenApply(noth -> tmpstrg);
-                    } catch (final IOException exc) {
-                        throw new UncheckedIOException(exc);
+                                ).thenCompose(
+                                    cont -> tmpstrg.save(
+                                        new Key.From(source.getFileName().toString()), cont
+                                    )
+                                ).thenApply(noth -> new ChartsWriter(this.storage))
+                                .thenCompose(writer -> writer.addChartsToIndex(source, out, pckgs))
+                                .thenApply(noth -> tmpstrg);
+                        } catch (final IOException exc) {
+                            throw new UncheckedIOException(exc);
+                        }
                     }
-                }
-            ).thenCompose(
-                tmpstrg -> this.moveFromTempStorageAndDelete(tmpstrg, outidx.get(), tmpdir.get())
-            );
+                ).thenCompose(
+                    tmpstrg -> this.moveFromTempStorageAndDelete(tmpstrg, outidx.get(), dir.get())
+                );
         }
 
         @Override
@@ -190,55 +154,45 @@ public interface Helm {
             if (charts.isEmpty()) {
                 res = CompletableFuture.allOf();
             } else {
-                final Map<String, Set<String>> pckgs = new ConcurrentHashMap<>();
                 final AtomicReference<Key> outidx = new AtomicReference<>();
                 final AtomicReference<Path> dir = new AtomicReference<>();
-                res = CompletableFuture.allOf(
-                    charts.stream().map(
-                        key -> this.storage.value(key)
-                            .thenApply(PublisherAs::new)
-                            .thenCompose(PublisherAs::bytes)
-                            .thenApply(TgzArchive::new)
-                            .thenAccept(
-                                tgz -> {
-                                    final ChartYaml chart = tgz.chartYaml();
-                                    pckgs.putIfAbsent(chart.name(), new HashSet<>());
-                                    pckgs.get(chart.name()).add(chart.version());
-                                }
-                            )
-                    ).toArray(CompletableFuture[]::new)
-                ).thenCombine(
-                    this.storage.exists(IndexYaml.INDEX_YAML).thenCompose(this::versionsByPckgs),
-                    (ignore, fromidx) -> {
-                        checkExistenceChartsToDelete(fromidx, pckgs);
-                        return null;
-                    }
-                ).thenCompose(
-                    nothing -> {
-                        try {
-                            final String prefix = "index-";
-                            dir.set(Files.createTempDirectory(prefix));
-                            final Path source = Files.createTempFile(dir.get(), prefix, ".yaml");
-                            final Path out = Files.createTempFile(dir.get(), prefix, "-out.yaml");
-                            final Storage tmpstrg = new FileStorage(dir.get());
-                            outidx.set(new Key.From(out.getFileName().toString()));
-                            return this.storage.value(IndexYaml.INDEX_YAML)
-                                .thenCompose(
-                                    cont -> tmpstrg.save(
-                                        new Key.From(source.getFileName().toString()), cont
-                                    )
-                                ).thenCompose(
-                                    noth -> {
-                                        throw new NotImplementedException("not implemented yet");
-                                    }
-                                ).thenApply(noth -> tmpstrg);
-                        } catch (final IOException exc) {
-                            throw new UncheckedIOException(exc);
+                res = new Charts.Asto(this.storage)
+                    .versionsFor(charts)
+                    .thenCombine(
+                        this.storage.exists(IndexYaml.INDEX_YAML)
+                            .thenCompose(this::versionsByPckgs),
+                        (todelete, fromidx) -> {
+                            checkExistenceChartsToDelete(fromidx, todelete);
+                            return null;
                         }
-                    }
-                ).thenCompose(
-                    tmpstrg -> this.moveFromTempStorageAndDelete(tmpstrg, outidx.get(), dir.get())
-                );
+                    ).thenCompose(
+                        nothing -> {
+                            try {
+                                final String prfx = "index-";
+                                dir.set(Files.createTempDirectory(prfx));
+                                final Path source = Files.createTempFile(dir.get(), prfx, ".yaml");
+                                final Path out = Files.createTempFile(dir.get(), prfx, "-out.yaml");
+                                final Storage tmpstrg = new FileStorage(dir.get());
+                                outidx.set(new Key.From(out.getFileName().toString()));
+                                return this.storage.value(IndexYaml.INDEX_YAML)
+                                    .thenCompose(
+                                        cont -> tmpstrg.save(
+                                            new Key.From(source.getFileName().toString()), cont
+                                        )
+                                    ).thenCompose(
+                                        noth -> {
+                                            throw new NotImplementedException(
+                                                "not implemented yet"
+                                            );
+                                        }
+                                    ).thenApply(noth -> tmpstrg);
+                            } catch (final IOException exc) {
+                                throw new UncheckedIOException(exc);
+                            }
+                        }
+                    ).thenCompose(
+                        tmp -> this.moveFromTempStorageAndDelete(tmp, outidx.get(), dir.get())
+                    );
             }
             return res;
         }
@@ -296,84 +250,6 @@ public interface Helm {
         }
 
         /**
-         * Add info about charts to index. If index contains a chart with the same
-         * version, the exception will be generated. It has the next implementation.
-         * Read index file line by line. If we are in the `entries:` section, we will check
-         * whether the line is a name of chart (e.g. line has correct indent and ends
-         * with colon). It copy source index file line by line and if the line with
-         * version is met, the existence of this version in packages would be checked
-         * to avoid adding existed package. If the new name of chart is met, it will
-         * write remained versions from packages. When we read next line after end of
-         * `entries:` section from source index, we write info about remained charts
-         * in packages.
-         * @param source Path to temporary file with index
-         * @param out Path to temporary file in which new index would be written
-         * @param pckgs Packages collection which contains info about passed packages for
-         *  adding to index file. There is a version and chart yaml for each package.
-         * @return Result of completion
-         */
-        @SuppressWarnings("PMD.AssignmentInOperand")
-        private CompletionStage<Void> addChartsToIndex(
-            final Path source,
-            final Path out,
-            final Map<String, Set<Pair<String, ChartYaml>>> pckgs
-        ) {
-            return this.storage.exists(IndexYaml.INDEX_YAML)
-                .thenCompose(this::versionsByPckgs)
-                .thenCompose(
-                    vrsns -> {
-                        try (
-                            BufferedReader br = new BufferedReader(
-                                new InputStreamReader(Files.newInputStream(source))
-                            );
-                            BufferedWriter bufw = new BufferedWriter(
-                                new OutputStreamWriter(Files.newOutputStream(out))
-                            )
-                        ) {
-                            String line;
-                            boolean entrs = false;
-                            String name = null;
-                            YamlWriter writer = new YamlWriter(bufw, 2);
-                            while ((line = br.readLine()) != null) {
-                                final String trimmed = line.trim();
-                                if (!entrs) {
-                                    entrs = trimmed.equals(Asto.ENTRS);
-                                }
-                                if (entrs && new ParsedChartName(line).valid()) {
-                                    if (name == null) {
-                                        writer = new YamlWriter(
-                                            bufw, Asto.lastPosOfSpaceInBegin(line)
-                                        );
-                                    }
-                                    if (Asto.lastPosOfSpaceInBegin(line) == writer.indent()) {
-                                        Asto.writeRemainedVersionsOfChart(name, pckgs, writer);
-                                        name = trimmed.replace(":", "");
-                                    }
-                                }
-                                if (entrs) {
-                                    Asto.throwIfVersionExists(trimmed, name, pckgs);
-                                }
-                                if (entrs && name != null
-                                    && Asto.lastPosOfSpaceInBegin(line) == 0
-                                ) {
-                                    Asto.writeRemainedVersionsOfChart(name, pckgs, writer);
-                                    Asto.writeRemainedChartsAfterCopyIndex(pckgs, writer);
-                                    entrs = false;
-                                }
-                                writer.writeLine(line, 0);
-                            }
-                            if (entrs) {
-                                Asto.writeRemainedChartsAfterCopyIndex(pckgs, writer);
-                            }
-                        } catch (final IOException exc) {
-                            throw new UncheckedIOException(exc);
-                        }
-                        return CompletableFuture.allOf();
-                    }
-                );
-        }
-
-        /**
          * Obtains versions by packages from source index file or empty collection in case of
          * absence source index file.
          * @param exists Does source index file exist?
@@ -387,119 +263,6 @@ public interface Helm {
                 res = CompletableFuture.completedFuture(new HashMap<>());
             }
             return res;
-        }
-
-        /**
-         * Add chart from tgz archive to packages collection.
-         * @param tgz Tgz archive with chart yaml file
-         * @param pckgs Packages collection which contains info about passed packages for
-         *  adding to index file. There is a version and chart yaml for each package.
-         */
-        private static void addChartFromTgzToPackages(
-            final TgzArchive tgz,
-            final Map<String, Set<Pair<String, ChartYaml>>> pckgs
-        ) {
-            final Map<String, Object> fields = new HashMap<>(tgz.chartYaml().fields());
-            fields.putAll(tgz.metadata(Optional.empty()));
-            fields.put("created", new DateTimeNow().asString());
-            final ChartYaml chart = new ChartYaml(fields);
-            final String name = chart.name();
-            pckgs.putIfAbsent(name, new ConcurrentHashSet<>());
-            pckgs.get(name).add(
-                new ImmutablePair<>(chart.version(), chart)
-            );
-        }
-
-        /**
-         * Generates an exception if version of chart which contains in trimmed
-         * line exists in packages.
-         * @param trimmed Trimmed line from index file
-         * @param name Name of chart
-         * @param pckgs Packages collection which contains info about passed packages for
-         *  adding to index file. There is a version and chart yaml for each package.
-         */
-        private static void throwIfVersionExists(
-            final String trimmed,
-            final String name,
-            final Map<String, Set<Pair<String, ChartYaml>>> pckgs
-        ) {
-            if (trimmed.startsWith(Asto.VRSNS)) {
-                final String vers = trimmed.replace(Asto.VRSNS, "").trim();
-                if (pckgs.containsKey(name) && pckgs.get(name).stream().anyMatch(
-                    pair -> pair.getLeft().equals(vers)
-                )) {
-                    throw new IllegalStateException(
-                        String.format("Failed to write to index `%s` with version `%s`", name, vers)
-                    );
-                }
-            }
-        }
-
-        /**
-         * Write remained versions of passed chart in collection in case of their existence.
-         * @param name Chart name for which remained versions are checked
-         * @param pckgs Packages collection which contains info about passed packages for
-         *  adding to index file. There is a version and chart yaml for each package.
-         * @param writer Yaml writer
-         * @throws IOException In case of exception during writing
-         */
-        private static void writeRemainedVersionsOfChart(
-            final String name,
-            final Map<String, Set<Pair<String, ChartYaml>>> pckgs,
-            final YamlWriter writer
-        ) throws IOException {
-            if (name != null && pckgs.containsKey(name)) {
-                for (final Pair<String, ChartYaml> pair : pckgs.get(name)) {
-                    writer.writeLine("-", 2);
-                    final String str = new IndexYamlMapping(pair.getRight().fields()).toString();
-                    for (final String entry : str.split("[\\n\\r]+")) {
-                        // @checkstyle MagicNumberCheck (1 line)
-                        writer.writeLine(entry, 3);
-                    }
-                }
-                pckgs.remove(name);
-            }
-        }
-
-        /**
-         * Write remained versions for all charts in collection in case of their existence.
-         * @param pckgs Packages collection which contains info about passed packages for
-         *  adding to index file. There is a version and chart yaml for each package.
-         * @param writer Yaml writer
-         */
-        private static void writeRemainedChartsAfterCopyIndex(
-            final Map<String, Set<Pair<String, ChartYaml>>> pckgs,
-            final YamlWriter writer
-        ) {
-            pckgs.forEach(
-                (chart, pairs) -> {
-                    try {
-                        writer.writeLine(String.format("%s:", chart), 1);
-                        for (final Pair<String, ChartYaml> pair : pairs) {
-                            writer.writeLine("- ", 2);
-                            final String yaml;
-                            yaml = new IndexYamlMapping(pair.getRight().fields()).toString();
-                            final String[] lines = yaml.split("[\\n\\r]+");
-                            for (final String line : lines) {
-                                // @checkstyle MagicNumberCheck (1 line)
-                                writer.writeLine(line, 3);
-                            }
-                        }
-                    } catch (final IOException exc) {
-                        throw  new UncheckedIOException(exc);
-                    }
-                }
-            );
-            pckgs.clear();
-        }
-
-        /**
-         * Obtains last position of space from beginning before meeting any character.
-         * @param line Text line
-         * @return Last position of space from beginning before meeting any character.
-         */
-        private static int lastPosOfSpaceInBegin(final String line) {
-            return line.length() - line.replaceAll("^\\s*", "").length();
         }
     }
 }
