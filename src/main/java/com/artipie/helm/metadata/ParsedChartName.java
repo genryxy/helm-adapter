@@ -43,7 +43,7 @@ public final class ParsedChartName {
      * @param name Parsed from file with breaks chart name
      */
     public ParsedChartName(final String name) {
-        this.name = name.trim();
+        this.name = name;
     }
 
     /**
@@ -51,8 +51,9 @@ public final class ParsedChartName {
      * @return True if parsed chart name is valid, false otherwise.
      */
     public boolean valid() {
-        return this.name.endsWith(":")
-            && !this.name.equals(ParsedChartName.ENTRS)
-            && this.name.charAt(0) != '-';
+        final String trimmed = this.name.trim();
+        return trimmed.endsWith(":")
+            && !trimmed.equals(ParsedChartName.ENTRS)
+            && trimmed.charAt(0) != '-';
     }
 }

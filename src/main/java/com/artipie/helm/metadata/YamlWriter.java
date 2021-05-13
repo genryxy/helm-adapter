@@ -61,29 +61,19 @@ public final class YamlWriter {
     }
 
     /**
-     * Write data.
+     * Write data and a new line.
      * @param data Data which should be written
+     * @param xindendt How many times the minimum value of indent should be increased?
      * @throws IOException In case of error during writing.
      */
-    public void write(final String data) throws IOException {
-        this.writer.write(data);
-    }
-
-    /**
-     * Write data with spaces at the beginning.
-     * @param data Data which should be written
-     * @param space Number of spaces at the beginning
-     * @throws IOException In case of error during writing.
-     */
-    public void writeWithSpace(final String data, final int space) throws IOException {
-        this.write(String.format("%s%s", StringUtils.repeat(' ', space), data));
-    }
-
-    /**
-     * Write new line.
-     * @throws IOException In case of error during writing.
-     */
-    public void newLine() throws IOException {
+    public void writeLine(final String data, final int xindendt) throws IOException {
+        this.writer.write(
+            String.format(
+                "%s%s",
+                StringUtils.repeat(' ', xindendt * this.indnt),
+                data
+            )
+        );
         this.writer.newLine();
     }
 }

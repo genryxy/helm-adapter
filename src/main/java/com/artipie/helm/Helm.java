@@ -257,8 +257,7 @@ public interface Helm {
                                     Asto.writeRemainedChartsAfterCopyIndex(pckgs, writer);
                                     entrs = false;
                                 }
-                                writer.write(line);
-                                writer.newLine();
+                                writer.writeLine(line, 0);
                             }
                             if (entrs) {
                                 Asto.writeRemainedChartsAfterCopyIndex(pckgs, writer);
@@ -348,13 +347,11 @@ public interface Helm {
         ) throws IOException {
             if (name != null && pckgs.containsKey(name)) {
                 for (final Pair<String, ChartYaml> pair : pckgs.get(name)) {
-                    writer.writeWithSpace("-", writer.indent() * 2);
-                    writer.newLine();
+                    writer.writeLine("-", 2);
                     final String str = new IndexYamlMapping(pair.getRight().fields()).toString();
                     for (final String entry : str.split("[\\n\\r]+")) {
                         // @checkstyle MagicNumberCheck (1 line)
-                        writer.writeWithSpace(entry, writer.indent() * 3);
-                        writer.newLine();
+                        writer.writeLine(entry, 3);
                     }
                 }
                 pckgs.remove(name);
@@ -374,18 +371,15 @@ public interface Helm {
             pckgs.forEach(
                 (chart, pairs) -> {
                     try {
-                        writer.writeWithSpace(String.format("%s:", chart), writer.indent());
-                        writer.newLine();
+                        writer.writeLine(String.format("%s:", chart), 1);
                         for (final Pair<String, ChartYaml> pair : pairs) {
-                            writer.writeWithSpace("- ", writer.indent() * 2);
-                            writer.newLine();
+                            writer.writeLine("- ", 2);
                             final String yaml;
                             yaml = new IndexYamlMapping(pair.getRight().fields()).toString();
                             final String[] lines = yaml.split("[\\n\\r]+");
                             for (final String line : lines) {
                                 // @checkstyle MagicNumberCheck (1 line)
-                                writer.writeWithSpace(line, writer.indent() * 3);
-                                writer.newLine();
+                                writer.writeLine(line, 3);
                             }
                         }
                     } catch (final IOException exc) {
