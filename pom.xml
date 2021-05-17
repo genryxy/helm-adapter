@@ -30,9 +30,6 @@ SOFTWARE.
   </parent>
   <modelVersion>4.0.0</modelVersion>
   <packaging>pom</packaging>
-  <modules>
-    <module>benchmarks</module>
-  </modules>
   <properties>
     <vertx.version>3.9.2</vertx.version>
   </properties>
