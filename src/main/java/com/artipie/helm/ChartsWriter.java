@@ -79,7 +79,7 @@ final class ChartsWriter {
     /**
      * Generate.
      */
-    static final String GNRTD = "generated:";
+    static final String TAG_GENERATED = "generated:";
 
     /**
      * Storage.
@@ -155,7 +155,7 @@ final class ChartsWriter {
                                 ChartsWriter.writeRemainedChartsAfterCopyIndex(pckgs, writer);
                                 entrs = false;
                             }
-                            ChartsWriter.writeAndReplaceGenerated(line, writer);
+                            ChartsWriter.writeAndReplaceTagGenerated(line, writer);
                         }
                         if (entrs) {
                             ChartsWriter.writeRemainedChartsAfterCopyIndex(pckgs, writer);
@@ -223,20 +223,20 @@ final class ChartsWriter {
                                         }
                                         if (posspace == writer.indent()) {
                                             if (name != null) {
-                                                writeIfNotDelete(lines, pckgs, writer);
+                                                writeIfNotContainInDeleted(lines, pckgs, writer);
                                             }
                                             name = trimmed.replace(":", "");
                                         }
                                     }
                                     if (entrs && name != null && posspace == 0) {
                                         entrs = false;
-                                        writeIfNotDelete(lines, pckgs, writer);
+                                        writeIfNotContainInDeleted(lines, pckgs, writer);
                                     }
                                     if (entrs && name != null) {
                                         lines.add(line);
                                     }
                                     if (lines.isEmpty()) {
-                                        writeAndReplaceGenerated(line, writer);
+                                        writeAndReplaceTagGenerated(line, writer);
                                     }
                                 }
                             } catch (final IOException exc) {
@@ -249,17 +249,18 @@ final class ChartsWriter {
     }
 
     /**
-     * Write line if it does not start with tag generated. Otherwise updates time.
+     * Write line if it does not start with tag generated. Otherwise replaces the value
+     * of tag `generated` to update time when this index was generated.
      * @param line Parsed line
      * @param writer Writer
      * @throws IOException In case of exception during writing
      */
-    private static void writeAndReplaceGenerated(final String line, final YamlWriter writer)
+    private static void writeAndReplaceTagGenerated(final String line, final YamlWriter writer)
         throws IOException {
-        if (line.startsWith(ChartsWriter.GNRTD)) {
+        if (line.startsWith(ChartsWriter.TAG_GENERATED)) {
             writer.writeLine(
                 String.format(
-                    "%s %s", ChartsWriter.GNRTD, new DateTimeNow().asString()
+                    "%s %s", ChartsWriter.TAG_GENERATED, new DateTimeNow().asString()
                 ),
                 0
             );
@@ -269,13 +270,15 @@ final class ChartsWriter {
     }
 
     /**
-     * Writes info about all versions of chart to new index.
+     * Writes info about all versions of chart to new index if chart with specified
+     * name and version does not exist in collection of charts which should be removed
+     * from index file.
      * @param lines Parsed lines
      * @param pckgs Charts which should be removed
      * @param writer Writer
      * @throws IOException In case of exception during writing
      */
-    private static void writeIfNotDelete(
+    private static void writeIfNotContainInDeleted(
         final List<String> lines,
         final Map<String, Set<String>> pckgs,
         final YamlWriter writer
@@ -493,7 +496,7 @@ final class ChartsWriter {
          * @return Name of chart.
          */
         public String name() {
-            if (this.lines.size() > 0) {
+            if (!this.lines.isEmpty()) {
                 return this.lines.get(0);
             }
             throw new IllegalStateException("Failed to get name as there are no lines");
@@ -505,12 +508,16 @@ final class ChartsWriter {
          * @return Version from parsed lines.
          */
         private static String version(final List<String> entry) {
-            for (final String line : entry) {
-                if (line.trim().startsWith(ChartsWriter.VRSNS)) {
-                    return line.replace(ChartsWriter.VRSNS, "").trim();
+            return entry.stream().filter(
+                line -> line.trim().startsWith(ChartsWriter.VRSNS)
+            ).map(line -> line.replace(ChartsWriter.VRSNS, ""))
+            .map(String::trim)
+            .findFirst()
+            .orElseThrow(
+                () -> {
+                    throw new IllegalStateException("Couldn't find version for deletion");
                 }
-            }
-            throw new IllegalStateException("Couldn't find version for deletion");
+            );
         }
     }
 }
