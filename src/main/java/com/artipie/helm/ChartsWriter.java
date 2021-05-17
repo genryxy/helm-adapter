@@ -513,11 +513,7 @@ final class ChartsWriter {
             ).map(line -> line.replace(ChartsWriter.VRSNS, ""))
             .map(String::trim)
             .findFirst()
-            .orElseThrow(
-                () -> {
-                    throw new IllegalStateException("Couldn't find version for deletion");
-                }
-            );
+            .orElseThrow(() -> new IllegalStateException("Couldn't find version for deletion"));
         }
     }
 }
