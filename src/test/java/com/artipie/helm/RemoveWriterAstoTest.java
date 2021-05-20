@@ -41,9 +41,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsEqual;
+import org.hamcrest.core.IsInstanceOf;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -144,6 +147,22 @@ final class RemoveWriterAstoTest {
         MatcherAssert.assertThat(
             this.indexFromStrg().entries().isEmpty(),
             new IsEqual<>(true)
+        );
+    }
+
+    @Test
+    void failsToDeleteAbsentInIndexChart() {
+        final String chart = "tomcat-0.4.1.tgz";
+        new TestResource("index/index-one-ark.yaml")
+            .saveTo(this.storage, new Key.From(this.source.getFileName().toString()));
+        new TestResource(chart).saveTo(this.storage);
+        final Throwable thr = Assertions.assertThrows(
+            CompletionException.class,
+            () -> this.delete(chart)
+        );
+        MatcherAssert.assertThat(
+            thr.getCause(),
+            new IsInstanceOf(IllegalStateException.class)
         );
     }
 
