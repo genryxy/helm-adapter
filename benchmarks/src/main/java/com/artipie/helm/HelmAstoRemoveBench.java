@@ -27,6 +27,7 @@ import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.asto.memory.InMemoryStorage;
+import com.artipie.asto.test.TestResource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -70,12 +71,27 @@ public class HelmAstoRemoveBench {
     private static final String BENCH_DIR = System.getenv("BENCH_DIR");
 
     /**
+     * Key for index file.
+     */
+    private static final Key INDEX = new Key.From("index.yaml");
+
+    /**
      * Collection of keys of files which should be removed.
      */
     private Set<Key> todelete;
 
+    /**
+     * Implementation of storage for benchmarks.
+     */
+    private BenchStorage storage;
+
+    /**
+     * Content of index file.
+     */
+    private byte[] index;
+
     @Setup
-    public void setup() {
+    public void setup() throws IOException {
         if (HelmAstoRemoveBench.BENCH_DIR == null) {
             throw new IllegalStateException("BENCH_DIR environment variable must be set");
         }
@@ -92,11 +108,32 @@ public class HelmAstoRemoveBench {
             "parse-6.2.16.tgz", "parse-7.0.0.tgz", "parse-7.1.0.tgz"
         ).map(Key.From::new)
         .collect(Collectors.toSet());
+        this.storage = new BenchStorage();
+        try (Stream<Path> files = Files.list(Paths.get(HelmAstoRemoveBench.BENCH_DIR))) {
+            files.forEach(
+                file -> {
+                    final byte[] bytes = new Unchecked<>(() -> Files.readAllBytes(file)).value();
+                    if (file.getFileName().toString().equals(HelmAstoRemoveBench.INDEX.string())) {
+                        this.index = bytes;
+                    }
+                    this.storage.save(
+                        new Key.From(file.getFileName().toString()),
+                        new Content.From(bytes)
+                    ).join();
+                }
+            );
+        }
+    }
+
+    @Setup(Level.Invocation)
+    public void setupInvocation() {
+        this.storage.reset().toCompletableFuture().join();
     }
 
     @Benchmark
-    public void run(final StorageCopy data) {
-        new Helm.Asto(data.storage)
+    public void run() {
+        this.storage.save(HelmAstoRemoveBench.INDEX, new Content.From(this.index)).join();
+        new Helm.Asto(this.storage)
             .delete(this.todelete)
             .toCompletableFuture().join();
     }
@@ -113,32 +150,5 @@ public class HelmAstoRemoveBench {
                 .forks(1)
                 .build()
         ).run();
-    }
-
-    /**
-     * Class for preparation of storage on each iteration.
-     * @since 0.3
-     */
-    @State(Scope.Thread)
-    public static class StorageCopy {
-        /**
-         * Benchmark storage with index file and archives.
-         */
-        private Storage storage;
-
-        @Setup(Level.Invocation)
-        public void setup() throws IOException {
-            this.storage = new InMemoryStorage();
-            try (Stream<Path> files = Files.list(Paths.get(HelmAstoRemoveBench.BENCH_DIR))) {
-                files.forEach(
-                    file -> this.storage.save(
-                        new Key.From(file.getFileName().toString()),
-                        new Content.From(
-                            new Unchecked<>(() -> Files.readAllBytes(file)).value()
-                        )
-                    ).join()
-                );
-            }
-        }
     }
 }
