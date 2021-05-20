@@ -132,8 +132,8 @@ public interface Helm {
                                     cont -> tmpstrg.save(
                                         new Key.From(source.getFileName().toString()), cont
                                     )
-                                ).thenApply(noth -> new ChartsWriter(this.storage))
-                                .thenCompose(writer -> writer.addChartsToIndex(source, out, pckgs))
+                                ).thenApply(noth -> new AddWriter.Asto(this.storage))
+                                .thenCompose(writer -> writer.add(source, out, pckgs))
                                 .thenApply(noth -> tmpstrg);
                         } catch (final IOException exc) {
                             throw new UncheckedIOException(exc);

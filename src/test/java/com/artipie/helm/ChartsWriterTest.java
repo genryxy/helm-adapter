@@ -38,16 +38,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 import org.hamcrest.MatcherAssert;
-import org.hamcrest.Matchers;
 import org.hamcrest.core.IsEqual;
 import org.hamcrest.core.IsInstanceOf;
 import org.junit.jupiter.api.Assertions;
@@ -92,40 +85,6 @@ final class ChartsWriterTest {
         ).toPath();
         this.out = Files.createTempFile(this.dir, prfx, "-out.yaml");
         this.storage = new FileStorage(this.dir);
-    }
-
-    @Test
-    void writesToIndexAboutNewChart() {
-        final String tomcat = "tomcat-0.4.1.tgz";
-        new TestResource("index/index-one-ark.yaml")
-            .saveTo(this.storage, IndexYaml.INDEX_YAML);
-        final Map<String, Set<Pair<String, ChartYaml>>> pckgs = new HashMap<>();
-        final Set<Pair<String, ChartYaml>> entries = new HashSet<>();
-        entries.add(
-            new ImmutablePair<>(
-                "0.4.1", new TgzArchive(new TestResource(tomcat).asBytes()).chartYaml()
-            )
-        );
-        pckgs.put("tomcat", entries);
-        new ChartsWriter(this.storage)
-            .addChartsToIndex(this.source, this.out, pckgs)
-            .toCompletableFuture().join();
-        final IndexYamlMapping index = this.indexFromStrg();
-        MatcherAssert.assertThat(
-            "Written charts are wrong",
-            index.entries().keySet(),
-            Matchers.containsInAnyOrder("tomcat", "ark")
-        );
-        MatcherAssert.assertThat(
-            "Tomcat is absent",
-            index.byChartAndVersion("tomcat", "0.4.1").isPresent(),
-            new IsEqual<>(true)
-        );
-        MatcherAssert.assertThat(
-            "Ark is absent",
-            index.byChartAndVersion("ark", "1.0.1").isPresent(),
-            new IsEqual<>(true)
-        );
     }
 
     @Test
