@@ -26,10 +26,9 @@ package com.artipie.helm;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.helm.metadata.Index;
-import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.ParsedChartName;
 import com.artipie.helm.metadata.YamlWriter;
-import com.artipie.helm.misc.DateTimeNow;
+import com.artipie.helm.misc.LineWriter;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -75,11 +74,6 @@ final class ChartsWriter {
     static final String ENTRS = "entries:";
 
     /**
-     * Generate.
-     */
-    static final String TAG_GENERATED = "generated:";
-
-    /**
      * Storage.
      */
     private final Storage storage;
@@ -112,85 +106,62 @@ final class ChartsWriter {
         return new Charts.Asto(this.storage)
             .versionsFor(charts)
             .thenCombine(
-                this.storage.exists(IndexYaml.INDEX_YAML).thenCompose(this::versionsByPckgs),
+                new Index.WithBreaks(this.storage).versionsByPackages(),
                 (todelete, fromidx) -> {
                     checkExistenceChartsToDelete(fromidx, todelete);
                     return todelete;
                 }
             ).thenCompose(
-                pckgs -> this.storage.exists(IndexYaml.INDEX_YAML)
-                    .thenCompose(this::versionsByPckgs)
-                    .thenCompose(
-                        vrsns -> {
-                            try (
-                                BufferedReader br = new BufferedReader(
-                                    new InputStreamReader(Files.newInputStream(source))
-                                );
-                                BufferedWriter bufw = new BufferedWriter(
-                                    new OutputStreamWriter(Files.newOutputStream(out))
-                                )
-                            ) {
-                                String line;
-                                boolean entrs = false;
-                                String name = null;
-                                final List<String> lines = new ArrayList<>(2);
-                                YamlWriter writer = new YamlWriter(bufw, 2);
-                                while ((line = br.readLine()) != null) {
-                                    final String trimmed = line.trim();
-                                    final int posspace = ChartsWriter.lastPosOfSpaceInBegin(line);
-                                    if (!entrs) {
-                                        entrs = trimmed.equals(ChartsWriter.ENTRS);
-                                    }
-                                    if (entrs && new ParsedChartName(line).valid()) {
-                                        if (name == null) {
-                                            writer = new YamlWriter(bufw, posspace);
-                                        }
-                                        if (posspace == writer.indent()) {
-                                            if (name != null) {
-                                                writeIfNotContainInDeleted(lines, pckgs, writer);
-                                            }
-                                            name = trimmed.replace(":", "");
-                                        }
-                                    }
-                                    if (entrs && name != null && posspace == 0) {
-                                        entrs = false;
+                pckgs ->  {
+                    try (
+                        BufferedReader br = new BufferedReader(
+                            new InputStreamReader(Files.newInputStream(source))
+                        );
+                        BufferedWriter bufw = new BufferedWriter(
+                            new OutputStreamWriter(Files.newOutputStream(out))
+                        )
+                    ) {
+                        String line;
+                        boolean entrs = false;
+                        String name = null;
+                        final List<String> lines = new ArrayList<>(2);
+                        YamlWriter writer = new YamlWriter(bufw, 2);
+                        LineWriter linewrtr = new LineWriter(writer);
+                        while ((line = br.readLine()) != null) {
+                            final String trimmed = line.trim();
+                            final int posspace = ChartsWriter.lastPosOfSpaceInBegin(line);
+                            if (!entrs) {
+                                entrs = trimmed.equals(ChartsWriter.ENTRS);
+                            }
+                            if (entrs && new ParsedChartName(line).valid()) {
+                                if (name == null) {
+                                    writer = new YamlWriter(bufw, posspace);
+                                    linewrtr = new LineWriter(writer);
+                                }
+                                if (posspace == writer.indent()) {
+                                    if (name != null) {
                                         writeIfNotContainInDeleted(lines, pckgs, writer);
                                     }
-                                    if (entrs && name != null) {
-                                        lines.add(line);
-                                    }
-                                    if (lines.isEmpty()) {
-                                        writeAndReplaceTagGenerated(line, writer);
-                                    }
+                                    name = trimmed.replace(":", "");
                                 }
-                            } catch (final IOException exc) {
-                                throw new UncheckedIOException(exc);
                             }
-                            return CompletableFuture.allOf();
+                            if (entrs && name != null && posspace == 0) {
+                                entrs = false;
+                                writeIfNotContainInDeleted(lines, pckgs, writer);
+                            }
+                            if (entrs && name != null) {
+                                lines.add(line);
+                            }
+                            if (lines.isEmpty()) {
+                                linewrtr.writeAndReplaceTagGenerated(line);
+                            }
                         }
-                    )
+                    } catch (final IOException exc) {
+                        throw new UncheckedIOException(exc);
+                    }
+                    return CompletableFuture.allOf();
+                }
             );
-    }
-
-    /**
-     * Write line if it does not start with tag generated. Otherwise replaces the value
-     * of tag `generated` to update time when this index was generated.
-     * @param line Parsed line
-     * @param writer Writer
-     * @throws IOException In case of exception during writing
-     */
-    private static void writeAndReplaceTagGenerated(final String line, final YamlWriter writer)
-        throws IOException {
-        if (line.startsWith(ChartsWriter.TAG_GENERATED)) {
-            writer.writeLine(
-                String.format(
-                    "%s %s", ChartsWriter.TAG_GENERATED, new DateTimeNow().asString()
-                ),
-                0
-            );
-        } else {
-            writer.writeLine(line, 0);
-        }
     }
 
     /**
@@ -263,22 +234,6 @@ final class ChartsWriter {
                 }
             }
         }
-    }
-
-    /**
-     * Obtains versions by packages from source index file or empty collection in case of
-     * absence source index file.
-     * @param exists Does source index file exist?
-     * @return Versions by packages.
-     */
-    private CompletionStage<Map<String, Set<String>>> versionsByPckgs(final boolean exists) {
-        final CompletionStage<Map<String, Set<String>>> res;
-        if (exists) {
-            res = new Index.WithBreaks(this.storage).versionsByPackages();
-        } else {
-            res = CompletableFuture.completedFuture(new HashMap<>());
-        }
-        return res;
     }
 
     /**
