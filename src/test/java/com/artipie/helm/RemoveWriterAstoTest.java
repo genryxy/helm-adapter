@@ -49,12 +49,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Test for {@link ChartsWriter}.
+ * Test for {@link RemoveWriter.Asto}.
  * @since 0.3
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
-final class ChartsWriterTest {
+final class RemoveWriterAstoTest {
     /**
      * Temporary directory for all tests.
      * @checkstyle VisibilityModifierCheck (3 lines)
@@ -181,7 +181,7 @@ final class ChartsWriterTest {
         final Collection<Key> keys = Arrays.stream(charts)
             .map(Key.From::new)
             .collect(Collectors.toList());
-        new ChartsWriter(this.storage)
+        new RemoveWriter.Asto(this.storage)
             .delete(this.source, this.out, keys)
             .toCompletableFuture().join();
     }

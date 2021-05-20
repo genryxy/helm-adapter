@@ -73,6 +73,16 @@ interface AddWriter {
      */
     final class Asto implements AddWriter {
         /**
+         * Versions.
+         */
+        static final String VRSNS = "version:";
+
+        /**
+         * Entries.
+         */
+        static final String ENTRS = "entries:";
+
+        /**
          * Storage.
          */
         private final Storage storage;
@@ -126,7 +136,7 @@ interface AddWriter {
                                 final String trimmed = line.trim();
                                 final int lastposspace = lastPosOfSpaceInBegin(line);
                                 if (!entrs) {
-                                    entrs = trimmed.equals(ChartsWriter.ENTRS);
+                                    entrs = trimmed.equals(Asto.ENTRS);
                                 }
                                 if (entrs && new ParsedChartName(line).valid()) {
                                     if (name == null) {
@@ -172,8 +182,8 @@ interface AddWriter {
             final String name,
             final Map<String, Set<Pair<String, ChartYaml>>> pckgs
         ) {
-            if (trimmed.startsWith(ChartsWriter.VRSNS)) {
-                final String vers = trimmed.replace(ChartsWriter.VRSNS, "").trim();
+            if (trimmed.startsWith(Asto.VRSNS)) {
+                final String vers = trimmed.replace(Asto.VRSNS, "").trim();
                 if (pckgs.containsKey(name) && pckgs.get(name).stream().anyMatch(
                     pair -> pair.getLeft().equals(vers)
                 )) {
