@@ -131,15 +131,26 @@ final class HelmAstoDeleteTest {
     }
 
     @Test
+    void failsToDeleteWithIncorrectPrefix() {
+        final Key prefix = new Key.From("prefix");
+        final Key todelete = new Key.From("wrong", "ark-1.0.1.tgz");
+        new TestResource("index.yaml")
+            .saveTo(this.storage, new Key.From(prefix, IndexYaml.INDEX_YAML));
+        final Throwable thr = Assertions.assertThrows(
+            CompletionException.class,
+            () -> this.delete(prefix, todelete.string())
+        );
+        MatcherAssert.assertThat(
+            thr.getCause().getMessage(),
+            new StringContains("does not start with prefix")
+        );
+    }
+
+    @Test
     void deletesChartFromNestedFolder() {
         final String ark = "ark-1.0.1.tgz";
         final Key full = new Key.From("nested", "ark-1.0.1.tgz");
-        this.storage.save(
-            IndexYaml.INDEX_YAML,
-            new Content.From(
-                new TestResource("index.yaml").asBytes()
-            )
-        ).join();
+        new TestResource("index.yaml").saveTo(this.storage);
         new TestResource(ark).saveTo(this.storage, full);
         this.delete(Key.ROOT, full.string());
         MatcherAssert.assertThat(
@@ -162,12 +173,7 @@ final class HelmAstoDeleteTest {
         final Key keyidx = new Key.From(prefix, IndexYaml.INDEX_YAML);
         final String ark = "ark-1.0.1.tgz";
         final Key full = new Key.From(prefix, "ark-1.0.1.tgz");
-        this.storage.save(
-            keyidx,
-            new Content.From(
-                new TestResource("index.yaml").asBytes()
-            )
-        ).join();
+        new TestResource("index.yaml").saveTo(this.storage, keyidx);
         new TestResource(ark).saveTo(this.storage, new Key.From(prefix, ark));
         this.delete(prefix, full.string());
         MatcherAssert.assertThat(
