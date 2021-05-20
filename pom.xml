@@ -29,7 +29,6 @@ SOFTWARE.
     <version>0.5.1</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
-  <packaging>pom</packaging>
   <properties>
     <vertx.version>3.9.2</vertx.version>
   </properties>
