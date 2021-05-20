@@ -128,11 +128,11 @@ public class HelmAstoRemoveBench {
     @Setup(Level.Invocation)
     public void setupInvocation() {
         this.storage.reset().toCompletableFuture().join();
+        this.storage.save(HelmAstoRemoveBench.INDEX, new Content.From(this.index)).join();
     }
 
     @Benchmark
     public void run() {
-        this.storage.save(HelmAstoRemoveBench.INDEX, new Content.From(this.index)).join();
         new Helm.Asto(this.storage)
             .delete(this.todelete)
             .toCompletableFuture().join();
