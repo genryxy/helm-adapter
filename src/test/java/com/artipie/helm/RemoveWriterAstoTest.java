@@ -25,7 +25,6 @@ package com.artipie.helm;
 
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
-import com.artipie.asto.ValueNotFoundException;
 import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.fs.FileStorage;
 import com.artipie.asto.test.TestResource;
@@ -44,10 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 import org.hamcrest.MatcherAssert;
-import org.hamcrest.Matchers;
 import org.hamcrest.core.IsEqual;
 import org.hamcrest.core.IsInstanceOf;
 import org.junit.jupiter.api.Assertions;
@@ -56,12 +52,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Test for {@link ChartsWriter}.
+ * Test for {@link RemoveWriter.Asto}.
  * @since 0.3
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
-final class ChartsWriterTest {
+final class RemoveWriterAstoTest {
     /**
      * Temporary directory for all tests.
      * @checkstyle VisibilityModifierCheck (3 lines)
@@ -92,40 +88,6 @@ final class ChartsWriterTest {
         ).toPath();
         this.out = Files.createTempFile(this.dir, prfx, "-out.yaml");
         this.storage = new FileStorage(this.dir);
-    }
-
-    @Test
-    void writesToIndexAboutNewChart() {
-        final String tomcat = "tomcat-0.4.1.tgz";
-        new TestResource("index/index-one-ark.yaml")
-            .saveTo(this.storage, IndexYaml.INDEX_YAML);
-        final Map<String, Set<Pair<String, ChartYaml>>> pckgs = new HashMap<>();
-        final Set<Pair<String, ChartYaml>> entries = new HashSet<>();
-        entries.add(
-            new ImmutablePair<>(
-                "0.4.1", new TgzArchive(new TestResource(tomcat).asBytes()).chartYaml()
-            )
-        );
-        pckgs.put("tomcat", entries);
-        new ChartsWriter(this.storage)
-            .addChartsToIndex(this.source, this.out, pckgs)
-            .toCompletableFuture().join();
-        final IndexYamlMapping index = this.indexFromStrg();
-        MatcherAssert.assertThat(
-            "Written charts are wrong",
-            index.entries().keySet(),
-            Matchers.containsInAnyOrder("tomcat", "ark")
-        );
-        MatcherAssert.assertThat(
-            "Tomcat is absent",
-            index.byChartAndVersion("tomcat", "0.4.1").isPresent(),
-            new IsEqual<>(true)
-        );
-        MatcherAssert.assertThat(
-            "Ark is absent",
-            index.byChartAndVersion("ark", "1.0.1").isPresent(),
-            new IsEqual<>(true)
-        );
     }
 
     @Test
@@ -176,16 +138,15 @@ final class ChartsWriterTest {
     }
 
     @Test
-    void failsToDeleteAbsentChartIfTgzIsAbsent() {
-        new TestResource("index.yaml")
+    void deleteLastChartFromIndex() {
+        final String chart = "ark-1.0.1.tgz";
+        new TestResource("index/index-one-ark.yaml")
             .saveTo(this.storage, new Key.From(this.source.getFileName().toString()));
-        final Throwable thr = Assertions.assertThrows(
-            CompletionException.class,
-            () -> this.delete("notExist")
-        );
+        new TestResource(chart).saveTo(this.storage);
+        this.delete(chart);
         MatcherAssert.assertThat(
-            thr.getCause(),
-            new IsInstanceOf(ValueNotFoundException.class)
+            this.indexFromStrg().entries().isEmpty(),
+            new IsEqual<>(true)
         );
     }
 
@@ -205,25 +166,23 @@ final class ChartsWriterTest {
         );
     }
 
-    @Test
-    void deleteLastChartFromIndex() {
-        final String chart = "ark-1.0.1.tgz";
-        new TestResource("index/index-one-ark.yaml")
-            .saveTo(this.storage, new Key.From(this.source.getFileName().toString()));
-        new TestResource(chart).saveTo(this.storage);
-        this.delete(chart);
-        MatcherAssert.assertThat(
-            this.indexFromStrg().entries().isEmpty(),
-            new IsEqual<>(true)
-        );
-    }
-
     private void delete(final String... charts) {
         final Collection<Key> keys = Arrays.stream(charts)
             .map(Key.From::new)
             .collect(Collectors.toList());
-        new ChartsWriter(this.storage)
-            .delete(this.source, this.out, keys)
+        final Map<String, Set<String>> todelete = new HashMap<>();
+        keys.forEach(
+            key -> {
+                final ChartYaml chart = new TgzArchive(
+                    new PublisherAs(this.storage.value(key).join()).bytes()
+                        .toCompletableFuture().join()
+                ).chartYaml();
+                todelete.putIfAbsent(chart.name(), new HashSet<>());
+                todelete.get(chart.name()).add(chart.version());
+            }
+        );
+        new RemoveWriter.Asto(this.storage)
+            .delete(this.source, this.out, todelete)
             .toCompletableFuture().join();
     }
 

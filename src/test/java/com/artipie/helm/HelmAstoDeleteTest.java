@@ -48,7 +48,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
- * Test for {@link Helm.Asto#delete(Collection)}.
+ * Test for {@link Helm.Asto#delete(Collection, Key)}.
  * @since 0.3
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
@@ -71,7 +71,7 @@ final class HelmAstoDeleteTest {
         new TestResource(chart).saveTo(this.storage);
         final Throwable thr = Assertions.assertThrows(
             CompletionException.class,
-            () -> this.delete(chart)
+            () -> this.delete(Key.ROOT, chart)
         );
         MatcherAssert.assertThat(
             thr.getCause().getMessage(),
@@ -85,7 +85,7 @@ final class HelmAstoDeleteTest {
         new TestResource(chart).saveTo(this.storage);
         final Throwable thr = Assertions.assertThrows(
             CompletionException.class,
-            () -> this.delete(chart)
+            () -> this.delete(Key.ROOT, chart)
         );
         MatcherAssert.assertThat(
             thr.getCause().getMessage(),
@@ -99,7 +99,7 @@ final class HelmAstoDeleteTest {
         this.storage.save(IndexYaml.INDEX_YAML, Content.EMPTY);
         final Throwable thr = Assertions.assertThrows(
             CompletionException.class,
-            () -> this.delete(chart)
+            () -> this.delete(Key.ROOT, chart)
         );
         MatcherAssert.assertThat(
             thr.getCause(),
@@ -115,14 +115,11 @@ final class HelmAstoDeleteTest {
         Stream.of(tomcat, arkone, arktwo)
             .forEach(chart -> new TestResource(chart).saveTo(this.storage));
         this.saveSourceIndex("index.yaml");
-        this.delete(arkone);
+        this.delete(Key.ROOT, arkone);
         MatcherAssert.assertThat(
             "Removed chart is not removed",
-            new IndexYamlMapping(
-                new PublisherAs(
-                    this.storage.value(IndexYaml.INDEX_YAML).join()
-                ).asciiString().toCompletableFuture().join()
-            ).byChartAndVersion("ark", "1.0.1")
+            this.indexFromStrg(IndexYaml.INDEX_YAML)
+                .byChartAndVersion("ark", "1.0.1")
             .isPresent(),
             new IsEqual<>(false)
         );
@@ -133,11 +130,73 @@ final class HelmAstoDeleteTest {
         );
     }
 
-    private void delete(final String... charts) {
+    @Test
+    void deletesChartFromNestedFolder() {
+        final String ark = "ark-1.0.1.tgz";
+        final Key full = new Key.From("nested", "ark-1.0.1.tgz");
+        this.storage.save(
+            IndexYaml.INDEX_YAML,
+            new Content.From(
+                new TestResource("index.yaml").asBytes()
+            )
+        ).join();
+        new TestResource(ark).saveTo(this.storage, full);
+        this.delete(Key.ROOT, full.string());
+        MatcherAssert.assertThat(
+            "Removed chart is not removed",
+            this.indexFromStrg(IndexYaml.INDEX_YAML)
+                .byChartAndVersion("ark", "1.0.1")
+                .isPresent(),
+            new IsEqual<>(false)
+        );
+        MatcherAssert.assertThat(
+            "Archive of removed chart remained",
+            this.storage.exists(full).join(),
+            new IsEqual<>(false)
+        );
+    }
+
+    @Test
+    void deletesFromIndexFileWithPrefix() {
+        final Key prefix = new Key.From("prefix");
+        final Key keyidx = new Key.From(prefix, IndexYaml.INDEX_YAML);
+        final String ark = "ark-1.0.1.tgz";
+        final Key full = new Key.From(prefix, "ark-1.0.1.tgz");
+        this.storage.save(
+            keyidx,
+            new Content.From(
+                new TestResource("index.yaml").asBytes()
+            )
+        ).join();
+        new TestResource(ark).saveTo(this.storage, new Key.From(prefix, ark));
+        this.delete(prefix, full.string());
+        MatcherAssert.assertThat(
+            "Removed chart is not removed",
+            this.indexFromStrg(keyidx)
+                .byChartAndVersion("ark", "1.0.1")
+                .isPresent(),
+            new IsEqual<>(false)
+        );
+        MatcherAssert.assertThat(
+            "Archive of removed chart remained",
+            this.storage.exists(full).join(),
+            new IsEqual<>(false)
+        );
+    }
+
+    private void delete(final Key prefix, final String... charts) {
         final Collection<Key> keys = Arrays.stream(charts)
             .map(Key.From::new)
             .collect(Collectors.toList());
-        new Helm.Asto(this.storage).delete(keys).toCompletableFuture().join();
+        new Helm.Asto(this.storage).delete(keys, prefix).toCompletableFuture().join();
+    }
+
+    private IndexYamlMapping indexFromStrg(final Key path) {
+        return new IndexYamlMapping(
+            new PublisherAs(
+                this.storage.value(path).join()
+            ).asciiString().toCompletableFuture().join()
+        );
     }
 
     private void saveSourceIndex(final String path) {
