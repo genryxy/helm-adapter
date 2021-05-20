@@ -25,7 +25,6 @@ package com.artipie.helm;
 
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
-import com.artipie.asto.ValueNotFoundException;
 import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.fs.FileStorage;
 import com.artipie.asto.test.TestResource;
@@ -38,12 +37,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.concurrent.CompletionException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsEqual;
-import org.hamcrest.core.IsInstanceOf;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -135,36 +135,6 @@ final class RemoveWriterAstoTest {
     }
 
     @Test
-    void failsToDeleteAbsentChartIfTgzIsAbsent() {
-        new TestResource("index.yaml")
-            .saveTo(this.storage, new Key.From(this.source.getFileName().toString()));
-        final Throwable thr = Assertions.assertThrows(
-            CompletionException.class,
-            () -> this.delete("notExist")
-        );
-        MatcherAssert.assertThat(
-            thr.getCause(),
-            new IsInstanceOf(ValueNotFoundException.class)
-        );
-    }
-
-    @Test
-    void failsToDeleteAbsentInIndexChart() {
-        final String chart = "tomcat-0.4.1.tgz";
-        new TestResource("index/index-one-ark.yaml")
-            .saveTo(this.storage, new Key.From(this.source.getFileName().toString()));
-        new TestResource(chart).saveTo(this.storage);
-        final Throwable thr = Assertions.assertThrows(
-            CompletionException.class,
-            () -> this.delete(chart)
-        );
-        MatcherAssert.assertThat(
-            thr.getCause(),
-            new IsInstanceOf(IllegalStateException.class)
-        );
-    }
-
-    @Test
     void deleteLastChartFromIndex() {
         final String chart = "ark-1.0.1.tgz";
         new TestResource("index/index-one-ark.yaml")
@@ -181,8 +151,19 @@ final class RemoveWriterAstoTest {
         final Collection<Key> keys = Arrays.stream(charts)
             .map(Key.From::new)
             .collect(Collectors.toList());
+        final Map<String, Set<String>> todelete = new HashMap<>();
+        keys.forEach(
+            key -> {
+                final ChartYaml chart = new TgzArchive(
+                    new PublisherAs(this.storage.value(key).join()).bytes()
+                        .toCompletableFuture().join()
+                ).chartYaml();
+                todelete.putIfAbsent(chart.name(), new HashSet<>());
+                todelete.get(chart.name()).add(chart.version());
+            }
+        );
         new RemoveWriter.Asto(this.storage)
-            .delete(this.source, this.out, keys)
+            .delete(this.source, this.out, todelete)
             .toCompletableFuture().join();
     }
 

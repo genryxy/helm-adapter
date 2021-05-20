@@ -38,7 +38,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,10 +63,10 @@ public interface RemoveWriter {
      * which should not be deleted from file are rewritten to new index file.
      * @param source Path to temporary file with index
      * @param out Path to temporary file in which new index would be written
-     * @param charts Collection with keys for charts which should be deleted
+     * @param todelete Collection with charts with specified versions which should be deleted
      * @return Result of completion
      */
-    CompletionStage<Void> delete(Path source, Path out, Collection<Key> charts);
+    CompletionStage<Void> delete(Path source, Path out, Map<String, Set<String>> todelete);
 
     /**
      * Implementation of {@link RemoveWriter} for abstract storage.
@@ -106,18 +105,17 @@ public interface RemoveWriter {
         public CompletionStage<Void> delete(
             final Path source,
             final Path out,
-            final Collection<Key> charts
+            final Map<String, Set<String>> todelete
         ) {
-            return new Charts.Asto(this.storage)
-                .versionsFor(charts)
-                .thenCombine(
-                    new Index.WithBreaks(this.storage).versionsByPackages(),
-                    (todelete, fromidx) -> {
+            return new Index.WithBreaks(this.storage)
+                .versionsByPackages(new Key.From(source.getFileName().toString()))
+                .thenCompose(
+                    fromidx -> {
                         checkExistenceChartsToDelete(fromidx, todelete);
-                        return todelete;
+                        return CompletableFuture.allOf();
                     }
                 ).thenCompose(
-                    pckgs ->  {
+                    noth ->  {
                         try (
                             BufferedReader br = new BufferedReader(
                                 new InputStreamReader(Files.newInputStream(source))
@@ -145,14 +143,14 @@ public interface RemoveWriter {
                                     }
                                     if (posspace == writer.indent()) {
                                         if (name != null) {
-                                            writeIfNotContainInDeleted(lines, pckgs, writer);
+                                            writeIfNotContainInDeleted(lines, todelete, writer);
                                         }
                                         name = trimmed.replace(":", "");
                                     }
                                 }
                                 if (entrs && name != null && posspace == 0) {
                                     entrs = false;
-                                    writeIfNotContainInDeleted(lines, pckgs, writer);
+                                    writeIfNotContainInDeleted(lines, todelete, writer);
                                 }
                                 if (entrs && name != null) {
                                     lines.add(line);
