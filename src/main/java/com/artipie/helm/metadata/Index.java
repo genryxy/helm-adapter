@@ -52,9 +52,10 @@ import java.util.concurrent.CompletionStage;
 public interface Index {
     /**
      * Obtains versions for packages which exist in the index file.
+     * @param idxpath Path to index file
      * @return Map where key is a package name, value is represented versions.
      */
-    CompletionStage<Map<String, Set<String>>> versionsByPackages();
+    CompletionStage<Map<String, Set<String>>> versionsByPackages(Key idxpath);
 
     /**
      * Reader of `index.yaml` which contains break lines.
@@ -94,8 +95,8 @@ public interface Index {
         }
 
         @Override
-        public CompletionStage<Map<String, Set<String>>> versionsByPackages() {
-            return this.storage.exists(IndexYaml.INDEX_YAML)
+        public CompletionStage<Map<String, Set<String>>> versionsByPackages(final Key idx) {
+            return this.storage.exists(idx)
                 .thenCompose(
                     exists -> {
                         CompletionStage<Map<String, Set<String>>> res;
@@ -104,7 +105,7 @@ public interface Index {
                                 final String prefix = "index-";
                                 final Path tmp = Files.createTempDirectory(prefix);
                                 final Path file = Files.createTempFile(tmp, prefix, ".yaml");
-                                res = this.storage.value(IndexYaml.INDEX_YAML)
+                                res = this.storage.value(idx)
                                     .thenCompose(
                                         cont -> new FileStorage(tmp).save(
                                             new Key.From(file.getFileName().toString()), cont

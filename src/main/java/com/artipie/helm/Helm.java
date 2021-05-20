@@ -38,6 +38,7 @@ import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.NotImplementedException;
 import org.cactoos.list.ListOf;
@@ -71,10 +72,12 @@ public interface Helm {
 
     /**
      * Remove info from index about charts.
-     * @param charts Keys for charts which should be removed from index file
+     * @param charts Keys for charts which should be removed from index file. These keys
+     *  should start with specified prefix
+     * @param prefix Path to index file
      * @return Result of completion
      */
-    CompletionStage<Void> delete(Collection<Key> charts);
+    CompletionStage<Void> delete(Collection<Key> charts, Key prefix);
 
     /**
      * Implementation of {@link Helm} for abstract storage.
@@ -140,21 +143,25 @@ public interface Helm {
                         }
                     }
                 ).thenCompose(
-                    tmpstrg -> this.moveFromTempStorageAndDelete(tmpstrg, outidx.get(), dir.get())
+                    tmpstrg -> this.moveFromTempStorageAndDelete(
+                        tmpstrg, outidx.get(), dir.get(), IndexYaml.INDEX_YAML
+                    )
                 );
         }
 
         @Override
-        public CompletionStage<Void> delete(final Collection<Key> charts) {
+        public CompletionStage<Void> delete(final Collection<Key> charts, final Key prefix) {
             final CompletionStage<Void> res;
             if (charts.isEmpty()) {
                 res = CompletableFuture.allOf();
             } else {
                 final AtomicReference<Key> outidx = new AtomicReference<>();
                 final AtomicReference<Path> dir = new AtomicReference<>();
-                res = this.storage.exists(IndexYaml.INDEX_YAML)
+                final Key keyidx = new Key.From(prefix, IndexYaml.INDEX_YAML);
+                res = this.storage.exists(keyidx)
                     .thenCompose(
                         exists -> {
+                            throwIfKeysInvalid(charts, prefix);
                             if (exists) {
                                 try {
                                     final String prfx = "index-";
@@ -164,18 +171,20 @@ public interface Helm {
                                     out = Files.createTempFile(dir.get(), prfx, "-out.yaml");
                                     final Storage tmpstrg = new FileStorage(dir.get());
                                     outidx.set(new Key.From(out.getFileName().toString()));
-                                    return this.storage.value(IndexYaml.INDEX_YAML)
+                                    return this.storage.value(keyidx)
                                         .thenCompose(
                                             cont -> tmpstrg.save(
                                                 new Key.From(src.getFileName().toString()), cont
                                             )
-                                        ).thenCompose(
-                                            noth -> new RemoveWriter.Asto(this.storage)
-                                                .delete(src, out, charts)
-                                        ).thenApply(noth -> tmpstrg)
+                                        ).thenCombine(
+                                            new Charts.Asto(this.storage).versionsFor(charts),
+                                            (noth, fromidx) -> new RemoveWriter.Asto(tmpstrg)
+                                                .delete(src, out, fromidx)
+                                        ).thenCompose(Function.identity())
+                                        .thenApply(noth -> tmpstrg)
                                         .thenCompose(
                                             tmp -> this.moveFromTempStorageAndDelete(
-                                                tmp, outidx.get(), dir.get()
+                                                tmp, outidx.get(), dir.get(), keyidx
                                             )
                                         ).thenCompose(
                                             noth -> CompletableFuture.allOf(
@@ -204,17 +213,42 @@ public interface Helm {
          * @param tmpstrg Temporary storage with index file
          * @param outidx Key to index file in temporary storage
          * @param tmpdir Temporary directory
+         * @param idxtarget Target key to index file in source storage
          * @return Result of completion
+         * @checkstyle ParameterNumberCheck (7 lines)
          */
         private CompletionStage<Void> moveFromTempStorageAndDelete(
             final Storage tmpstrg,
             final Key outidx,
-            final Path tmpdir
+            final Path tmpdir,
+            final Key idxtarget
         ) {
             return new Copy(tmpstrg, new ListOf<>(outidx)).copy(this.storage)
-                .thenCompose(noth -> this.storage.move(outidx, IndexYaml.INDEX_YAML))
+                .thenCompose(noth -> this.storage.move(outidx, idxtarget))
                 .thenApply(noth -> FileUtils.deleteQuietly(tmpdir.toFile()))
                 .thenCompose(ignore -> CompletableFuture.allOf());
+        }
+
+        /**
+         * Checks that all keys from collection start with specified prefix.
+         * Otherwise an exception will be thrown.
+         * @param keys Keys of archives with charts
+         * @param prefix Prefix which is required for all keys
+         */
+        private static void throwIfKeysInvalid(final Collection<Key> keys, final Key prefix) {
+            keys.forEach(
+                key -> {
+                    if (!key.string().startsWith(prefix.string())) {
+                        throw new IllegalStateException(
+                            String.format(
+                                "Key `%s` does not start with prefix `%s`",
+                                key.string(),
+                                prefix.string()
+                            )
+                        );
+                    }
+                }
+            );
         }
     }
 }

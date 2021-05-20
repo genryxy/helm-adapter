@@ -23,6 +23,7 @@
  */
 package com.artipie.helm;
 
+import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.helm.metadata.Index;
 import com.artipie.helm.metadata.IndexYamlMapping;
@@ -116,7 +117,7 @@ interface AddWriter {
             final Map<String, Set<Pair<String, ChartYaml>>> pckgs
         ) {
             return new Index.WithBreaks(this.storage)
-                .versionsByPackages()
+                .versionsByPackages(new Key.From(source.getFileName().toString()))
                 .thenCompose(
                     vrsns -> {
                         try (
