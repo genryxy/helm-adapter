@@ -170,7 +170,7 @@ public interface Helm {
                                                 new Key.From(src.getFileName().toString()), cont
                                             )
                                         ).thenCompose(
-                                            noth -> new ChartsWriter(this.storage)
+                                            noth -> new RemoveWriter.Asto(this.storage)
                                                 .delete(src, out, charts)
                                         ).thenApply(noth -> tmpstrg)
                                         .thenCompose(
