@@ -25,11 +25,10 @@ package com.artipie.helm;
 
 import com.artipie.asto.Storage;
 import com.artipie.helm.metadata.Index;
-import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
 import com.artipie.helm.metadata.ParsedChartName;
 import com.artipie.helm.metadata.YamlWriter;
-import com.artipie.helm.misc.DateTimeNow;
+import com.artipie.helm.misc.LineWriter;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -38,7 +37,6 @@ import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -107,8 +105,8 @@ interface AddWriter {
             final Path out,
             final Map<String, Set<Pair<String, ChartYaml>>> pckgs
         ) {
-            return this.storage.exists(IndexYaml.INDEX_YAML)
-                .thenCompose(this::versionsByPckgs)
+            return new Index.WithBreaks(this.storage)
+                .versionsByPackages()
                 .thenCompose(
                     vrsns -> {
                         try (
@@ -123,6 +121,7 @@ interface AddWriter {
                             boolean entrs = false;
                             String name = null;
                             YamlWriter writer = new YamlWriter(bufw, 2);
+                            LineWriter linewrtr = new LineWriter(writer);
                             while ((line = br.readLine()) != null) {
                                 final String trimmed = line.trim();
                                 final int lastposspace = lastPosOfSpaceInBegin(line);
@@ -132,6 +131,7 @@ interface AddWriter {
                                 if (entrs && new ParsedChartName(line).valid()) {
                                     if (name == null) {
                                         writer = new YamlWriter(bufw, lastposspace);
+                                        linewrtr = new LineWriter(writer);
                                     }
                                     if (lastposspace == writer.indent()) {
                                         writeRemainedVersionsOfChart(name, pckgs, writer);
@@ -146,7 +146,7 @@ interface AddWriter {
                                     writeRemainedChartsAfterCopyIndex(pckgs, writer);
                                     entrs = false;
                                 }
-                                writeAndReplaceTagGenerated(line, writer);
+                                linewrtr.writeAndReplaceTagGenerated(line);
                             }
                             if (entrs) {
                                 writeRemainedChartsAfterCopyIndex(pckgs, writer);
@@ -157,22 +157,6 @@ interface AddWriter {
                         return CompletableFuture.allOf();
                     }
                 );
-        }
-
-        /**
-         * Obtains versions by packages from source index file or empty collection in case of
-         * absence source index file.
-         * @param exists Does source index file exist?
-         * @return Versions by packages.
-         */
-        private CompletionStage<Map<String, Set<String>>> versionsByPckgs(final boolean exists) {
-            final CompletionStage<Map<String, Set<String>>> res;
-            if (exists) {
-                res = new Index.WithBreaks(this.storage).versionsByPackages();
-            } else {
-                res = CompletableFuture.completedFuture(new HashMap<>());
-            }
-            return res;
         }
 
         /**
@@ -256,27 +240,6 @@ interface AddWriter {
                 }
             );
             pckgs.clear();
-        }
-
-        /**
-         * Write line if it does not start with tag generated. Otherwise replaces the value
-         * of tag `generated` to update time when this index was generated.
-         * @param line Parsed line
-         * @param writer Writer
-         * @throws IOException In case of exception during writing
-         */
-        private static void writeAndReplaceTagGenerated(final String line, final YamlWriter writer)
-            throws IOException {
-            if (line.startsWith(ChartsWriter.TAG_GENERATED)) {
-                writer.writeLine(
-                    String.format(
-                        "%s %s", ChartsWriter.TAG_GENERATED, new DateTimeNow().asString()
-                    ),
-                    0
-                );
-            } else {
-                writer.writeLine(line, 0);
-            }
         }
 
         /**

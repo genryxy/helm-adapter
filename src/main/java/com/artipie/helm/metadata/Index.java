@@ -39,7 +39,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.function.Function;
 
 /**
  * Reader of `index.yaml` file which does not read the entire file into memory.
@@ -96,25 +95,30 @@ public interface Index {
 
         @Override
         public CompletionStage<Map<String, Set<String>>> versionsByPackages() {
-            return CompletableFuture.supplyAsync(
-                () -> {
-                    CompletionStage<Map<String, Set<String>>> res;
-                    try {
-                        final String prefix = "index-";
-                        final Path tmp = Files.createTempDirectory(prefix);
-                        final Path file = Files.createTempFile(tmp, prefix, ".yaml");
-                        res = this.storage.value(IndexYaml.INDEX_YAML)
-                            .thenCompose(
-                                cont -> new FileStorage(tmp).save(
-                                    new Key.From(file.getFileName().toString()), cont
-                                )
-                            ).thenApply(ignore -> WithBreaks.versionsByPckgs(file));
-                    } catch (final IOException exc) {
-                        res = new FailedCompletionStage<>(exc);
+            return this.storage.exists(IndexYaml.INDEX_YAML)
+                .thenCompose(
+                    exists -> {
+                        CompletionStage<Map<String, Set<String>>> res;
+                        if (exists) {
+                            try {
+                                final String prefix = "index-";
+                                final Path tmp = Files.createTempDirectory(prefix);
+                                final Path file = Files.createTempFile(tmp, prefix, ".yaml");
+                                res = this.storage.value(IndexYaml.INDEX_YAML)
+                                    .thenCompose(
+                                        cont -> new FileStorage(tmp).save(
+                                            new Key.From(file.getFileName().toString()), cont
+                                        )
+                                    ).thenApply(ignore -> WithBreaks.versionsByPckgs(file));
+                            } catch (final IOException exc) {
+                                res = new FailedCompletionStage<>(exc);
+                            }
+                        } else {
+                            res = CompletableFuture.completedFuture(new HashMap<>());
+                        }
+                        return res;
                     }
-                    return res;
-                }
-            ).thenCompose(Function.identity());
+                );
         }
 
         /**
