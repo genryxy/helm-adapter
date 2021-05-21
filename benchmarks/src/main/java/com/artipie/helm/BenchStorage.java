@@ -109,14 +109,12 @@ public final class BenchStorage implements Storage {
     public CompletableFuture<Void> delete(final Key key) {
         return CompletableFuture.runAsync(
             () -> {
-                synchronized (this.existence) {
-                    if (this.absenceOf(key)) {
-                        throw new IllegalArgumentException(
-                            String.format("Key does not exist: %s", key.string())
-                        );
-                    }
-                    this.existence.put(key, false);
+                if (!this.existence.containsKey(key)) {
+                    throw new IllegalArgumentException(
+                        String.format("Key does not exist: %s", key.string())
+                    );
                 }
+                this.existence.put(key, false);
             }
         );
     }
