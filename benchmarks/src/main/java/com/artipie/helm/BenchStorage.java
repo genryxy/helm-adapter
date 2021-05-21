@@ -3,12 +3,13 @@ package com.artipie.helm;
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
+import com.artipie.asto.ValueNotFoundException;
 import com.artipie.asto.memory.InMemoryStorage;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 import org.apache.commons.lang3.NotImplementedException;
 
@@ -30,7 +31,7 @@ public final class BenchStorage implements Storage {
     /**
      * Storage content. If value is true, the key exists. Otherwise the key does not exist.
      */
-    private final Map<Key, Boolean> items;
+    private final ConcurrentMap<Key, Boolean> existence;
 
     /**
      * Ctor.
@@ -45,83 +46,76 @@ public final class BenchStorage implements Storage {
      */
     public BenchStorage(final Storage storage) {
         this.storage = storage;
-        this.items = new HashMap<>();
+        this.existence = new ConcurrentHashMap<>();
     }
 
     @Override
     public CompletableFuture<Boolean> exists(final Key key) {
         return CompletableFuture.supplyAsync(
-            () -> {
-                synchronized (this.items) {
-                    return this.items.containsKey(key) && this.items.get(key);
-                }
-            }
+            () -> !this.absenceOf(key)
         );
     }
 
     @Override
     public CompletableFuture<Collection<Key>> list(final Key prefix) {
-        synchronized (this.storage) {
-            return this.storage.list(prefix);
-        }
+        throw new NotImplementedException("not implemented");
     }
 
     @Override
     public CompletableFuture<Void> save(final Key key, final Content content) {
-        synchronized (this.storage) {
-            return this.storage.save(key, content)
-                .thenCompose(
-                    noth -> {
-                        synchronized (this.items) {
-                            this.items.put(key, true);
-                            return CompletableFuture.allOf();
-                        }
-                    }
-                );
-        }
+        return this.storage.save(key, content)
+            .thenAccept(noth -> this.existence.put(key, true));
     }
 
     @Override
     public CompletableFuture<Void> move(final Key source, final Key destination) {
         return CompletableFuture.supplyAsync(
             () -> {
-                synchronized (this.items) {
-                    if (this.items.containsKey(source) && this.items.get(source)) {
-                        synchronized (this.storage) {
-                            return this.storage.move(source, destination);
-                        }
-                    }
-                    throw new IllegalArgumentException(
-                        String.format("No value for source key: %s", source.string())
-                    );
+                if (!this.absenceOf(source)) {
+                    return this.storage.move(source, destination)
+                        .thenAccept(noth -> this.existence.remove(source))
+                        .thenAccept(noth -> this.existence.put(destination, true));
                 }
+                throw new IllegalArgumentException(
+                    String.format("No value for source key: %s", source.string())
+                );
             }
         ).thenCompose(Function.identity());
     }
 
     @Override
     public CompletableFuture<Long> size(final Key key) {
-        throw new NotImplementedException("not implemented");
+        return CompletableFuture.runAsync(
+            () -> {
+                if (this.absenceOf(key)) {
+                    throw new ValueNotFoundException(key);
+                }
+            }
+        ).thenCompose(noth -> this.storage.size(key));
     }
 
     @Override
     public CompletableFuture<Content> value(final Key key) {
-        synchronized (this.storage) {
-            return this.storage.value(key);
-        }
+        return CompletableFuture.runAsync(
+            () -> {
+                if (this.absenceOf(key)) {
+                    throw new ValueNotFoundException(key);
+                }
+            }
+        ).thenCompose(noth -> this.storage.value(key));
     }
 
     @Override
     public CompletableFuture<Void> delete(final Key key) {
         return CompletableFuture.runAsync(
             () -> {
-                synchronized (this.items) {
-                    if (!this.items.containsKey(key)) {
+                synchronized (this.existence) {
+                    if (this.absenceOf(key)) {
                         throw new IllegalArgumentException(
                             String.format("Key does not exist: %s", key.string())
                         );
                     }
-                    this.items.put(key, false);
+                    this.existence.put(key, false);
                 }
             }
         );
@@ -135,15 +129,23 @@ public final class BenchStorage implements Storage {
         throw new NotImplementedException("not implemented");
     }
 
+    /**
+     * Reset all values of existence map to true.
+     * @return Result of completion
+     */
     public CompletionStage<Void> reset() {
         return CompletableFuture.runAsync(
-            () -> {
-                synchronized (this.items) {
-                    this.items.keySet().forEach(
-                        key -> this.items.put(key, true)
-                    );
-                }
-            }
+            () -> this.existence.replaceAll((key, ignore) -> true)
         );
+    }
+
+    /**
+     * Is key absent in storage? It means that value from map is null
+     * or is equal to false.
+     * @param key Key which existence should be checked
+     * @return True key is absent in storage, false otherwise.
+     */
+    private boolean absenceOf(final Key key) {
+        return this.existence.get(key) != true;
     }
 }

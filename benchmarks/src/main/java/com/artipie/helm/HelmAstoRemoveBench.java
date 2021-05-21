@@ -134,7 +134,7 @@ public class HelmAstoRemoveBench {
     @Benchmark
     public void run() {
         new Helm.Asto(this.storage)
-            .delete(this.todelete)
+            .delete(this.todelete, Key.ROOT)
             .toCompletableFuture().join();
     }
 
