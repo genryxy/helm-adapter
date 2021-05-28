@@ -62,19 +62,19 @@ public interface Helm {
      * passed charts. In case of existence info about them in index
      * file an exception would be thrown.
      * @param charts Keys for charts which should be added to index file
-     * @param prefix Path to index file
+     * @param indexpath Path to index file
      * @return Result of completion
      */
-    CompletionStage<Void> add(Collection<Key> charts, Key prefix);
+    CompletionStage<Void> add(Collection<Key> charts, Key indexpath);
 
     /**
      * Remove info from index about charts.
      * @param charts Keys for charts which should be removed from index file. These keys
      *  should start with specified prefix
-     * @param prefix Path to index file
+     * @param indexpath Path to index file
      * @return Result of completion
      */
-    CompletionStage<Void> delete(Collection<Key> charts, Key prefix);
+    CompletionStage<Void> delete(Collection<Key> charts, Key indexpath);
 
     /**
      * Implementation of {@link Helm} for abstract storage.
@@ -101,12 +101,12 @@ public interface Helm {
         }
 
         @Override
-        public CompletionStage<Void> add(final Collection<Key> charts, final Key prefix) {
+        public CompletionStage<Void> add(final Collection<Key> charts, final Key indexpath) {
             final AtomicReference<Key> outidx = new AtomicReference<>();
             final AtomicReference<Path> dir = new AtomicReference<>();
-            final Key keyidx = new Key.From(prefix, IndexYaml.INDEX_YAML);
+            final Key keyidx = new Key.From(indexpath, IndexYaml.INDEX_YAML);
             return CompletableFuture.runAsync(
-                () -> throwIfKeysInvalid(charts, prefix)
+                () -> throwIfKeysInvalid(charts, indexpath)
             ).thenCompose(
                 nothing -> new Charts.Asto(this.storage)
                     .versionsAndYamlFor(charts)
@@ -152,18 +152,18 @@ public interface Helm {
         }
 
         @Override
-        public CompletionStage<Void> delete(final Collection<Key> charts, final Key prefix) {
+        public CompletionStage<Void> delete(final Collection<Key> charts, final Key indexpath) {
             final CompletionStage<Void> res;
             if (charts.isEmpty()) {
                 res = CompletableFuture.allOf();
             } else {
                 final AtomicReference<Key> outidx = new AtomicReference<>();
                 final AtomicReference<Path> dir = new AtomicReference<>();
-                final Key keyidx = new Key.From(prefix, IndexYaml.INDEX_YAML);
+                final Key keyidx = new Key.From(indexpath, IndexYaml.INDEX_YAML);
                 res = this.storage.exists(keyidx)
                     .thenCompose(
                         exists -> {
-                            throwIfKeysInvalid(charts, prefix);
+                            throwIfKeysInvalid(charts, indexpath);
                             if (exists) {
                                 try {
                                     final String prfx = "index-";
