@@ -139,11 +139,11 @@ public interface Helm {
                                     cont -> tmpstrg.save(
                                         new Key.From(source.getFileName().toString()), cont
                                     )
-                                ).thenApply(noth -> new AddWriter.Asto(this.storage))
+                                ).thenApply(noth -> new AddWriter.Asto(tmpstrg))
                                 .thenCompose(writer -> writer.add(source, out, pckgs))
                                 .thenCompose(
                                     noth -> this.moveFromTempStorageAndDelete(
-                                        tmpstrg, outidx.get(), dir.get(), IndexYaml.INDEX_YAML
+                                        tmpstrg, outidx.get(), dir.get(), keyidx
                                     )
                                 );
                             } catch (final IOException exc) {

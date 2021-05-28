@@ -209,12 +209,12 @@ final class HelmAstoAddTest {
         );
     }
 
-    private void addFilesToIndex(final Key prefix, final String... files) {
+    private void addFilesToIndex(final Key indexpath, final String... files) {
         final Collection<Key> keys = Arrays.stream(files)
             .map(Key.From::new)
             .collect(Collectors.toList());
         new Helm.Asto(this.storage)
-            .add(keys, prefix)
+            .add(keys, indexpath)
             .toCompletableFuture().join();
     }
 
