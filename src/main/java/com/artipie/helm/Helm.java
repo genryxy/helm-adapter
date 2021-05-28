@@ -62,18 +62,19 @@ public interface Helm {
      * passed charts. In case of existence info about them in index
      * file an exception would be thrown.
      * @param charts Keys for charts which should be added to index file
+     * @param indexpath Path to index file
      * @return Result of completion
      */
-    CompletionStage<Void> add(Collection<Key> charts);
+    CompletionStage<Void> add(Collection<Key> charts, Key indexpath);
 
     /**
      * Remove info from index about charts.
      * @param charts Keys for charts which should be removed from index file. These keys
      *  should start with specified prefix
-     * @param prefix Path to index file
+     * @param indexpath Path to index file
      * @return Result of completion
      */
-    CompletionStage<Void> delete(Collection<Key> charts, Key prefix);
+    CompletionStage<Void> delete(Collection<Key> charts, Key indexpath);
 
     /**
      * Implementation of {@link Helm} for abstract storage.
@@ -100,64 +101,69 @@ public interface Helm {
         }
 
         @Override
-        public CompletionStage<Void> add(final Collection<Key> charts) {
+        public CompletionStage<Void> add(final Collection<Key> charts, final Key indexpath) {
             final AtomicReference<Key> outidx = new AtomicReference<>();
             final AtomicReference<Path> dir = new AtomicReference<>();
-            return new Charts.Asto(this.storage)
-                .versionsAndYamlFor(charts)
-                .thenCompose(
-                    pckgs -> {
-                        try {
-                            final String prfx = "index-";
-                            dir.set(Files.createTempDirectory(prfx));
-                            final Path source = Files.createTempFile(dir.get(), prfx, ".yaml");
-                            final Path out = Files.createTempFile(dir.get(), prfx, "-out.yaml");
-                            final Storage tmpstrg = new FileStorage(dir.get());
-                            outidx.set(new Key.From(out.getFileName().toString()));
-                            return this.storage.exists(IndexYaml.INDEX_YAML)
-                                .thenCompose(
-                                    exists -> {
-                                        final CompletionStage<Content> res;
-                                        if (exists) {
-                                            res = this.storage.value(IndexYaml.INDEX_YAML);
-                                        } else {
-                                            res = CompletableFuture.completedFuture(
-                                                new EmptyIndex().asContent()
-                                            );
+            final Key keyidx = new Key.From(indexpath, IndexYaml.INDEX_YAML);
+            return CompletableFuture.runAsync(
+                () -> throwIfKeysInvalid(charts, indexpath)
+            ).thenCompose(
+                nothing -> new Charts.Asto(this.storage)
+                    .versionsAndYamlFor(charts)
+                    .thenCompose(
+                        pckgs -> {
+                            try {
+                                final String prfx = "index-";
+                                dir.set(Files.createTempDirectory(prfx));
+                                final Path source = Files.createTempFile(dir.get(), prfx, ".yaml");
+                                final Path out = Files.createTempFile(dir.get(), prfx, "-out.yaml");
+                                final Storage tmpstrg = new FileStorage(dir.get());
+                                outidx.set(new Key.From(out.getFileName().toString()));
+                                return this.storage.exists(keyidx)
+                                    .thenCompose(
+                                        exists -> {
+                                            final CompletionStage<Content> res;
+                                            if (exists) {
+                                                res = this.storage.value(keyidx);
+                                            } else {
+                                                res = CompletableFuture.completedFuture(
+                                                    new EmptyIndex().asContent()
+                                                );
+                                            }
+                                            return res;
                                         }
-                                        return res;
-                                    }
-                                ).thenCompose(
-                                    cont -> tmpstrg.save(
-                                        new Key.From(source.getFileName().toString()), cont
-                                    )
-                                ).thenApply(noth -> new AddWriter.Asto(this.storage))
-                                .thenCompose(writer -> writer.add(source, out, pckgs))
-                                .thenApply(noth -> tmpstrg);
-                        } catch (final IOException exc) {
-                            throw new UncheckedIOException(exc);
+                                    ).thenCompose(
+                                        cont -> tmpstrg.save(
+                                            new Key.From(source.getFileName().toString()), cont
+                                        )
+                                    ).thenApply(noth -> new AddWriter.Asto(tmpstrg))
+                                    .thenCompose(writer -> writer.add(source, out, pckgs))
+                                    .thenApply(noth -> tmpstrg);
+                            } catch (final IOException exc) {
+                                throw new UncheckedIOException(exc);
+                            }
                         }
-                    }
-                ).thenCompose(
-                    tmpstrg -> this.moveFromTempStorageAndDelete(
-                        tmpstrg, outidx.get(), dir.get(), IndexYaml.INDEX_YAML
+                    ).thenCompose(
+                        tmpstrg -> this.moveFromTempStorageAndDelete(
+                            tmpstrg, outidx.get(), dir.get(), keyidx
+                        )
                     )
-                );
+            );
         }
 
         @Override
-        public CompletionStage<Void> delete(final Collection<Key> charts, final Key prefix) {
+        public CompletionStage<Void> delete(final Collection<Key> charts, final Key indexpath) {
             final CompletionStage<Void> res;
             if (charts.isEmpty()) {
                 res = CompletableFuture.allOf();
             } else {
                 final AtomicReference<Key> outidx = new AtomicReference<>();
                 final AtomicReference<Path> dir = new AtomicReference<>();
-                final Key keyidx = new Key.From(prefix, IndexYaml.INDEX_YAML);
+                final Key keyidx = new Key.From(indexpath, IndexYaml.INDEX_YAML);
                 res = this.storage.exists(keyidx)
                     .thenCompose(
                         exists -> {
-                            throwIfKeysInvalid(charts, prefix);
+                            throwIfKeysInvalid(charts, indexpath);
                             if (exists) {
                                 try {
                                     final String prfx = "index-";
