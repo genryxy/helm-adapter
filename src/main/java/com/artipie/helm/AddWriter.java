@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.tuple.Pair;
 
 /**
@@ -163,7 +164,11 @@ interface AddWriter {
                                 writeRemainedChartsAfterCopyIndex(pckgs, writer);
                             }
                         } catch (final IOException exc) {
+                            FileUtils.deleteQuietly(out.getParent().toFile());
                             throw new UncheckedIOException(exc);
+                        } catch (final IllegalStateException exc) {
+                            FileUtils.deleteQuietly(out.getParent().toFile());
+                            throw exc;
                         }
                         return CompletableFuture.allOf();
                     }

@@ -44,6 +44,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import org.apache.commons.io.FileUtils;
 
 /**
  * Remove writer of info about charts from index file.
@@ -111,7 +112,12 @@ public interface RemoveWriter {
                 .versionsByPackages(new Key.From(source.getFileName().toString()))
                 .thenCompose(
                     fromidx -> {
-                        checkExistenceChartsToDelete(fromidx, todelete);
+                        try {
+                            checkExistenceChartsToDelete(fromidx, todelete);
+                        } catch (final IllegalStateException exc) {
+                            FileUtils.deleteQuietly(out.getParent().toFile());
+                            throw exc;
+                        }
                         return CompletableFuture.allOf();
                     }
                 ).thenCompose(
@@ -160,7 +166,11 @@ public interface RemoveWriter {
                                 }
                             }
                         } catch (final IOException exc) {
+                            FileUtils.deleteQuietly(out.getParent().toFile());
                             throw new UncheckedIOException(exc);
+                        } catch (final IllegalStateException exc) {
+                            FileUtils.deleteQuietly(out.getParent().toFile());
+                            throw exc;
                         }
                         return CompletableFuture.allOf();
                     }

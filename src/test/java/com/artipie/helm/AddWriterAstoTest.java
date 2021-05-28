@@ -39,11 +39,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.hamcrest.core.IsEqual;
+import org.hamcrest.core.StringContains;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -92,14 +95,7 @@ final class AddWriterAstoTest {
         final String tomcat = "tomcat-0.4.1.tgz";
         new TestResource("index/index-one-ark.yaml")
             .saveTo(this.storage, IndexYaml.INDEX_YAML);
-        final Map<String, Set<Pair<String, ChartYaml>>> pckgs = new HashMap<>();
-        final Set<Pair<String, ChartYaml>> entries = new HashSet<>();
-        entries.add(
-            new ImmutablePair<>(
-                "0.4.1", new TgzArchive(new TestResource(tomcat).asBytes()).chartYaml()
-            )
-        );
-        pckgs.put("tomcat", entries);
+        final Map<String, Set<Pair<String, ChartYaml>>> pckgs = packagesWithTomcat(tomcat);
         new AddWriter.Asto(this.storage)
             .add(this.source, this.out, pckgs)
             .toCompletableFuture().join();
@@ -126,5 +122,41 @@ final class AddWriterAstoTest {
             index.byChartAndVersion("ark", "1.0.1").isPresent(),
             new IsEqual<>(true)
         );
+    }
+
+    @Test
+    void failsToWriteInfoAboutExistedVersion() {
+        final String tomcat = "tomcat-0.4.1.tgz";
+        new TestResource("index.yaml")
+            .saveTo(this.storage, IndexYaml.INDEX_YAML);
+        final Map<String, Set<Pair<String, ChartYaml>>> pckgs = packagesWithTomcat(tomcat);
+        final CompletionException exc = Assertions.assertThrows(
+            CompletionException.class,
+            () -> new AddWriter.Asto(this.storage)
+                .add(this.source, this.out, pckgs)
+                .toCompletableFuture().join()
+        );
+        MatcherAssert.assertThat(
+            "Wrong message of handmade exception",
+            exc.getMessage(),
+            new StringContains("Failed to write to index `tomcat` with version `0.4.1`")
+        );
+        MatcherAssert.assertThat(
+            "Temporary was not removed in case of failing",
+            this.out.getParent().toFile().exists(),
+            new IsEqual<>(false)
+        );
+    }
+
+    private static Map<String, Set<Pair<String, ChartYaml>>> packagesWithTomcat(final String path) {
+        final Map<String, Set<Pair<String, ChartYaml>>> pckgs = new HashMap<>();
+        final Set<Pair<String, ChartYaml>> entries = new HashSet<>();
+        entries.add(
+            new ImmutablePair<>(
+                "0.4.1", new TgzArchive(new TestResource(path).asBytes()).chartYaml()
+            )
+        );
+        pckgs.put("tomcat", entries);
+        return pckgs;
     }
 }

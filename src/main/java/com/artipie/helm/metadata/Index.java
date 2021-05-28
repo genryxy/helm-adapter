@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import org.apache.commons.io.FileUtils;
 
 /**
  * Reader of `index.yaml` file which does not read the entire file into memory.
@@ -110,7 +111,13 @@ public interface Index {
                                         cont -> new FileStorage(tmp).save(
                                             new Key.From(file.getFileName().toString()), cont
                                         )
-                                    ).thenApply(ignore -> WithBreaks.versionsByPckgs(file));
+                                    ).thenApply(ignore -> WithBreaks.versionsByPckgs(file))
+                                    .thenApply(
+                                        pckgs -> {
+                                            FileUtils.deleteQuietly(tmp.toFile());
+                                            return pckgs;
+                                        }
+                                    );
                             } catch (final IOException exc) {
                                 res = new FailedCompletionStage<>(exc);
                             }
