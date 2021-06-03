@@ -23,6 +23,8 @@
  */
 package com.artipie.helm;
 
+import com.artipie.ArtipieException;
+import com.artipie.asto.ArtipieIOException;
 import com.artipie.asto.Content;
 import com.artipie.asto.Copy;
 import com.artipie.asto.Key;
@@ -31,7 +33,6 @@ import com.artipie.asto.fs.FileStorage;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.misc.EmptyIndex;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -156,7 +157,7 @@ public interface Helm {
                                     }
                                 );
                             } catch (final IOException exc) {
-                                throw new UncheckedIOException(exc);
+                                throw new ArtipieIOException(exc);
                             }
                         }
                     )
@@ -203,7 +204,7 @@ public interface Helm {
                                                     src.set(Files.createTempFile(dir.get(), prfx, ".yaml"));
                                                     out.set(Files.createTempFile(dir.get(), prfx, "-out.yaml"));
                                                 } catch (final IOException exc) {
-                                                    throw new UncheckedIOException(exc);
+                                                    throw new ArtipieIOException(exc);
                                                 }
                                                 tmpstrg.set(new FileStorage(dir.get()));
                                                 outidx.set(
@@ -251,10 +252,10 @@ public interface Helm {
                                     return rslt;
                                 } catch (final IllegalStateException exc) {
                                     FileUtils.deleteQuietly(dir.get().toFile());
-                                    throw exc;
+                                    throw new ArtipieException(exc);
                                 }
                             } else {
-                                throw new IllegalStateException(
+                                throw new ArtipieException(
                                     "Failed to delete packages as index does not exist"
                                 );
                             }
@@ -280,8 +281,10 @@ public interface Helm {
                         if (futures.stream().anyMatch(
                             res -> !res.toCompletableFuture().join().equals(true)
                         )) {
-                            throw new IllegalStateException(
-                                "Some of keys for deletion are absent in storage"
+                            throw new ArtipieException(
+                                new IllegalStateException(
+                                    "Some of keys for deletion are absent in storage"
+                                )
                             );
                         }
                         return CompletableFuture.allOf();
@@ -321,11 +324,13 @@ public interface Helm {
             keys.forEach(
                 key -> {
                     if (!key.string().startsWith(prefix.string())) {
-                        throw new IllegalStateException(
-                            String.format(
-                                "Key `%s` does not start with prefix `%s`",
-                                key.string(),
-                                prefix.string()
+                        throw new ArtipieException(
+                            new IllegalStateException(
+                                String.format(
+                                    "Key `%s` does not start with prefix `%s`",
+                                    key.string(),
+                                    prefix.string()
+                                )
                             )
                         );
                     }

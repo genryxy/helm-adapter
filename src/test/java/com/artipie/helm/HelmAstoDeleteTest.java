@@ -23,6 +23,7 @@
  */
 package com.artipie.helm;
 
+import com.artipie.ArtipieException;
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
@@ -108,7 +109,7 @@ final class HelmAstoDeleteTest {
         );
         MatcherAssert.assertThat(
             thr.getCause(),
-            new IsInstanceOf(IllegalStateException.class)
+            new IsInstanceOf(ArtipieException.class)
         );
         HelmAstoDeleteTest.assertTmpDirWasRemoved();
     }

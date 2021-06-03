@@ -23,6 +23,7 @@
  */
 package com.artipie.helm;
 
+import com.artipie.asto.ArtipieIOException;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.helm.metadata.Index;
@@ -35,7 +36,6 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -163,7 +163,7 @@ interface AddWriter {
                                 writeRemainedChartsAfterCopyIndex(pckgs, writer);
                             }
                         } catch (final IOException exc) {
-                            throw new UncheckedIOException(exc);
+                            throw new ArtipieIOException(exc);
                         }
                         return CompletableFuture.allOf();
                     }
@@ -246,7 +246,7 @@ interface AddWriter {
                             }
                         }
                     } catch (final IOException exc) {
-                        throw  new UncheckedIOException(exc);
+                        throw  new ArtipieIOException(exc);
                     }
                 }
             );

@@ -23,6 +23,7 @@
  */
 package com.artipie.helm.http;
 
+import com.artipie.ArtipieException;
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
@@ -127,7 +128,7 @@ final class DownloadIndexSliceTest {
     void throwsMalformedUrlExceptionForInvalidBase() {
         final String base = "withoutschemelocalhost:8080";
         final Throwable thr = Assertions.assertThrows(
-            IllegalStateException.class,
+            ArtipieException.class,
             () -> new DownloadIndexSlice(base, this.storage)
         );
         MatcherAssert.assertThat(

@@ -23,6 +23,7 @@
  */
 package com.artipie.helm;
 
+import com.artipie.ArtipieException;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.asto.ext.PublisherAs;
@@ -162,7 +163,7 @@ final class RemoveWriterAstoTest {
         );
         MatcherAssert.assertThat(
             thr.getCause(),
-            new IsInstanceOf(IllegalStateException.class)
+            new IsInstanceOf(ArtipieException.class)
         );
     }
 

@@ -23,6 +23,7 @@
  */
 package com.artipie.helm.http;
 
+import com.artipie.ArtipieException;
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
@@ -133,9 +134,11 @@ final class DownloadIndexSlice implements Slice {
         try {
             return new URL(url.replaceAll("/$", ""));
         } catch (final MalformedURLException exc) {
-            throw new IllegalStateException(
-                String.format("Failed to build URL from '%s'", url),
-                exc
+            throw new ArtipieException(
+                new IllegalStateException(
+                    String.format("Failed to build URL from '%s'", url),
+                    exc
+                )
             );
         }
     }
