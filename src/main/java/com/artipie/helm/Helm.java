@@ -108,7 +108,8 @@ public interface Helm {
             final AtomicReference<Key> outidx = new AtomicReference<>();
             final AtomicReference<Path> dir = new AtomicReference<>();
             final Key keyidx = new Key.From(indexpath, IndexYaml.INDEX_YAML);
-            return CompletableFuture.runAsync(
+            final CompletableFuture<Void> result = new CompletableFuture<>();
+            CompletableFuture.runAsync(
                 () -> throwIfKeysInvalid(charts, indexpath)
             ).thenCompose(
                 nothing -> new Charts.Asto(this.storage)
@@ -145,13 +146,31 @@ public interface Helm {
                                     noth -> this.moveFromTempStorageAndDelete(
                                         tmpstrg, outidx.get(), dir.get(), keyidx
                                     )
+                                ).handle(
+                                    (noth, thr) -> {
+                                        if (thr != null) {
+                                            FileUtils.deleteQuietly(out.getParent().toFile());
+                                            result.completeExceptionally(thr);
+                                        }
+                                        return null;
+                                    }
                                 );
                             } catch (final IOException exc) {
                                 throw new UncheckedIOException(exc);
                             }
                         }
                     )
+            ).handle(
+                (noth, thr) -> {
+                    if (thr == null) {
+                        result.complete(null);
+                    } else {
+                        result.completeExceptionally(thr);
+                    }
+                    return null;
+                }
             );
+            return result;
         }
 
         @Override

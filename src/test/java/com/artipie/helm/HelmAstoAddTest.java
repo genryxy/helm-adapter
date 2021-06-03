@@ -31,6 +31,10 @@ import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.CompletionException;
@@ -51,7 +55,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  * @since 0.3
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
-@SuppressWarnings("PMD.AvoidDuplicateLiterals")
+@SuppressWarnings({"PMD.AvoidDuplicateLiterals", "PMD.TooManyMethods"})
 final class HelmAstoAddTest {
     /**
      * Storage.
@@ -65,7 +69,7 @@ final class HelmAstoAddTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"index-one-ark.yaml", "index-one-ark-four-spaces.yaml"})
-    void addInfoAboutNewVersionOfPackageAndNewPackage(final String yaml) {
+    void addInfoAboutNewVersionOfPackageAndNewPackage(final String yaml) throws IOException {
         final String tomcat = "tomcat-0.4.1.tgz";
         final String ark = "ark-1.2.0.tgz";
         new TestResource(tomcat).saveTo(this.storage);
@@ -90,11 +94,12 @@ final class HelmAstoAddTest {
             ).collect(Collectors.toList()),
             Matchers.containsInAnyOrder("1.0.1", "1.2.0")
         );
+        HelmAstoAddTest.assertTmpDirWasRemoved();
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"index-one-ark.yaml", "index-one-ark-four-spaces.yaml"})
-    void addInfoAboutNewPackageAndContainsAllFields(final String yaml) {
+    void addInfoAboutNewPackageAndContainsAllFields(final String yaml) throws IOException {
         final String tomcat = "tomcat-0.4.1.tgz";
         new TestResource(tomcat).saveTo(this.storage);
         this.saveSourceIndex(yaml);
@@ -112,11 +117,12 @@ final class HelmAstoAddTest {
                 "icon", "name", "digest", "description", "version", "home"
             )
         );
+        HelmAstoAddTest.assertTmpDirWasRemoved();
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"index-one-ark.yaml", "index-one-ark-four-spaces.yaml"})
-    void addInfoAboutNewVersion(final String yaml) {
+    void addInfoAboutNewVersion(final String yaml) throws IOException {
         final String ark = "ark-1.2.0.tgz";
         new TestResource(ark).saveTo(this.storage);
         this.saveSourceIndex(yaml);
@@ -132,10 +138,11 @@ final class HelmAstoAddTest {
             index.byChartAndVersion("ark", "1.2.0").isPresent(),
             new IsEqual<>(true)
         );
+        HelmAstoAddTest.assertTmpDirWasRemoved();
     }
 
     @Test
-    void addInfoAboutPackageWhenSourceIndexIsAbsent() {
+    void addInfoAboutPackageWhenSourceIndexIsAbsent() throws IOException {
         final String ark = "ark-1.0.1.tgz";
         new TestResource(ark).saveTo(this.storage);
         this.addFilesToIndex(Key.ROOT, ark);
@@ -145,10 +152,11 @@ final class HelmAstoAddTest {
                 .isPresent(),
             new IsEqual<>(true)
         );
+        HelmAstoAddTest.assertTmpDirWasRemoved();
     }
 
     @Test
-    void failsToAddInfoAboutExistedVersion() {
+    void failsToAddInfoAboutExistedVersion() throws IOException {
         final String ark = "ark-1.0.1.tgz";
         new TestResource(ark).saveTo(this.storage);
         this.saveSourceIndex("index-one-ark.yaml");
@@ -160,10 +168,11 @@ final class HelmAstoAddTest {
             exc.getMessage(),
             new StringContains("Failed to write to index `ark` with version `1.0.1`")
         );
+        HelmAstoAddTest.assertTmpDirWasRemoved();
     }
 
     @Test
-    void addToIndexForNestedFolder() {
+    void addToIndexForNestedFolder() throws IOException {
         final Key prefix = new Key.From("nested");
         final String tomcat = "tomcat-0.4.1.tgz";
         final Key fulltomcat = new Key.From(prefix, tomcat);
@@ -191,10 +200,11 @@ final class HelmAstoAddTest {
             ).collect(Collectors.toList()),
             new IsEqual<>(new ListOf<>("1.0.1"))
         );
+        HelmAstoAddTest.assertTmpDirWasRemoved();
     }
 
     @Test
-    void failsToDeleteWithIncorrectPrefix() {
+    void failsToAddWithIncorrectPrefix() throws IOException {
         final Key prefix = new Key.From("prefix");
         final Key toadd = new Key.From("wrong", "tomcat-0.4.1.tgz");
         new TestResource("index/index-one-ark.yaml")
@@ -207,6 +217,7 @@ final class HelmAstoAddTest {
             thr.getCause().getMessage(),
             new StringContains("does not start with prefix")
         );
+        HelmAstoAddTest.assertTmpDirWasRemoved();
     }
 
     private void addFilesToIndex(final Key indexpath, final String... files) {
@@ -234,5 +245,15 @@ final class HelmAstoAddTest {
                 new TestResource(String.format("index/%s", name)).asBytes()
             )
         ).join();
+    }
+
+    private static void assertTmpDirWasRemoved() throws IOException {
+        final Path systemtemp = Paths.get(System.getProperty("java.io.tmpdir"));
+        MatcherAssert.assertThat(
+            "Temp dir for indexes was not removed",
+            Files.list(systemtemp)
+                .noneMatch(path -> path.getFileName().toString().startsWith("index-")),
+            new IsEqual<>(true)
+        );
     }
 }

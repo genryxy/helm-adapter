@@ -141,11 +141,6 @@ final class AddWriterAstoTest {
             exc.getMessage(),
             new StringContains("Failed to write to index `tomcat` with version `0.4.1`")
         );
-        MatcherAssert.assertThat(
-            "Temporary was not removed in case of failing",
-            this.out.getParent().toFile().exists(),
-            new IsEqual<>(false)
-        );
     }
 
     private static Map<String, Set<Pair<String, ChartYaml>>> packagesWithTomcat(final String path) {
