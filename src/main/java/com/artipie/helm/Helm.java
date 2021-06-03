@@ -35,10 +35,12 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.NotImplementedException;
 import org.cactoos.list.ListOf;
@@ -47,6 +49,7 @@ import org.cactoos.list.ListOf;
  * Helm repository.
  * @since 0.3
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
+ * @checkstyle ExecutableStatementCountCheck (500 lines)
  */
 public interface Helm {
     /**
@@ -105,7 +108,8 @@ public interface Helm {
             final AtomicReference<Key> outidx = new AtomicReference<>();
             final AtomicReference<Path> dir = new AtomicReference<>();
             final Key keyidx = new Key.From(indexpath, IndexYaml.INDEX_YAML);
-            return CompletableFuture.runAsync(
+            final CompletableFuture<Void> result = new CompletableFuture<>();
+            CompletableFuture.runAsync(
                 () -> throwIfKeysInvalid(charts, indexpath)
             ).thenCompose(
                 nothing -> new Charts.Asto(this.storage)
@@ -132,23 +136,41 @@ public interface Helm {
                                             }
                                             return res;
                                         }
-                                    ).thenCompose(
-                                        cont -> tmpstrg.save(
-                                            new Key.From(source.getFileName().toString()), cont
-                                        )
-                                    ).thenApply(noth -> new AddWriter.Asto(tmpstrg))
-                                    .thenCompose(writer -> writer.add(source, out, pckgs))
-                                    .thenApply(noth -> tmpstrg);
+                                ).thenCompose(
+                                    cont -> tmpstrg.save(
+                                        new Key.From(source.getFileName().toString()), cont
+                                    )
+                                ).thenApply(noth -> new AddWriter.Asto(tmpstrg))
+                                .thenCompose(writer -> writer.add(source, out, pckgs))
+                                .thenCompose(
+                                    noth -> this.moveFromTempStorageAndDelete(
+                                        tmpstrg, outidx.get(), dir.get(), keyidx
+                                    )
+                                ).handle(
+                                    (noth, thr) -> {
+                                        if (thr != null) {
+                                            FileUtils.deleteQuietly(out.getParent().toFile());
+                                            result.completeExceptionally(thr);
+                                        }
+                                        return null;
+                                    }
+                                );
                             } catch (final IOException exc) {
                                 throw new UncheckedIOException(exc);
                             }
                         }
-                    ).thenCompose(
-                        tmpstrg -> this.moveFromTempStorageAndDelete(
-                            tmpstrg, outidx.get(), dir.get(), keyidx
-                        )
                     )
+            ).handle(
+                (noth, thr) -> {
+                    if (thr == null) {
+                        result.complete(null);
+                    } else {
+                        result.completeExceptionally(thr);
+                    }
+                    return null;
+                }
             );
+            return result;
         }
 
         @Override
@@ -157,7 +179,6 @@ public interface Helm {
             if (charts.isEmpty()) {
                 res = CompletableFuture.allOf();
             } else {
-                final AtomicReference<Key> outidx = new AtomicReference<>();
                 final AtomicReference<Path> dir = new AtomicReference<>();
                 final Key keyidx = new Key.From(indexpath, IndexYaml.INDEX_YAML);
                 res = this.storage.exists(keyidx)
@@ -167,26 +188,43 @@ public interface Helm {
                             if (exists) {
                                 try {
                                     final String prfx = "index-";
-                                    dir.set(Files.createTempDirectory(prfx));
-                                    final Path src = Files.createTempFile(dir.get(), prfx, ".yaml");
-                                    final Path out;
-                                    out = Files.createTempFile(dir.get(), prfx, "-out.yaml");
-                                    final Storage tmpstrg = new FileStorage(dir.get());
-                                    outidx.set(new Key.From(out.getFileName().toString()));
-                                    return this.storage.value(keyidx)
+                                    final AtomicReference<Key> outidx = new AtomicReference<>();
+                                    final AtomicReference<Path> src = new AtomicReference<>();
+                                    final AtomicReference<Path> out = new AtomicReference<>();
+                                    final AtomicReference<Storage> tmpstrg;
+                                    tmpstrg = new AtomicReference<>();
+                                    final CompletableFuture<Void> rslt = new CompletableFuture<>();
+                                    this.checkAllChartsExistence(charts)
+                                        .thenAccept(
+                                            noth -> {
+                                                try {
+                                                    dir.set(Files.createTempDirectory(prfx));
+                                                    // @checkstyle LineLengthCheck (2 lines)
+                                                    src.set(Files.createTempFile(dir.get(), prfx, ".yaml"));
+                                                    out.set(Files.createTempFile(dir.get(), prfx, "-out.yaml"));
+                                                } catch (final IOException exc) {
+                                                    throw new UncheckedIOException(exc);
+                                                }
+                                                tmpstrg.set(new FileStorage(dir.get()));
+                                                outidx.set(
+                                                    new Key.From(out.get().getFileName().toString())
+                                                );
+                                            }
+                                        )
+                                        .thenCompose(nothing -> this.storage.value(keyidx))
                                         .thenCompose(
-                                            cont -> tmpstrg.save(
-                                                new Key.From(src.getFileName().toString()), cont
+                                            cont -> tmpstrg.get().save(
+                                                new Key.From(src.get().getFileName().toString()),
+                                                cont
                                             )
                                         ).thenCombine(
                                             new Charts.Asto(this.storage).versionsFor(charts),
-                                            (noth, fromidx) -> new RemoveWriter.Asto(tmpstrg)
-                                                .delete(src, out, fromidx)
+                                            (noth, fromidx) -> new RemoveWriter.Asto(tmpstrg.get())
+                                                .delete(src.get(), out.get(), fromidx)
                                         ).thenCompose(Function.identity())
-                                        .thenApply(noth -> tmpstrg)
                                         .thenCompose(
-                                            tmp -> this.moveFromTempStorageAndDelete(
-                                                tmp, outidx.get(), dir.get(), keyidx
+                                            noth -> this.moveFromTempStorageAndDelete(
+                                                tmpstrg.get(), outidx.get(), dir.get(), keyidx
                                             )
                                         ).thenCompose(
                                             noth -> CompletableFuture.allOf(
@@ -194,9 +232,26 @@ public interface Helm {
                                                     .map(this.storage::delete)
                                                     .toArray(CompletableFuture[]::new)
                                             )
+                                        ).handle(
+                                            (noth, thr) -> {
+                                                // @checkstyle NestedIfDepthCheck (10 lines)
+                                                if (thr == null) {
+                                                    rslt.complete(null);
+                                                } else {
+                                                    if (out.get() != null) {
+                                                        FileUtils.deleteQuietly(
+                                                            out.get().getParent().toFile()
+                                                        );
+                                                    }
+                                                    rslt.completeExceptionally(thr);
+                                                }
+                                                return null;
+                                            }
                                         );
-                                } catch (final IOException exc) {
-                                    throw new UncheckedIOException(exc);
+                                    return rslt;
+                                } catch (final IllegalStateException exc) {
+                                    FileUtils.deleteQuietly(dir.get().toFile());
+                                    throw exc;
                                 }
                             } else {
                                 throw new IllegalStateException(
@@ -207,6 +262,31 @@ public interface Helm {
                     );
             }
             return res;
+        }
+
+        /**
+         * Checks that keys for all charts exist in storage. In case of absence
+         * one of them an exception will be thrown.
+         * @param charts Charts of which existence should be checked
+         * @return Result of completion
+         */
+        private CompletableFuture<Void> checkAllChartsExistence(final Collection<Key> charts) {
+            final List<CompletionStage<Boolean>> futures = charts.stream()
+                .map(this.storage::exists)
+                .collect(Collectors.toList());
+            return CompletableFuture.allOf(futures.toArray(new CompletableFuture<?>[0]))
+                .thenCompose(
+                    nothing -> {
+                        if (futures.stream().anyMatch(
+                            res -> !res.toCompletableFuture().join().equals(true)
+                        )) {
+                            throw new IllegalStateException(
+                                "Some of keys for deletion are absent in storage"
+                            );
+                        }
+                        return CompletableFuture.allOf();
+                    }
+                );
         }
 
         /**

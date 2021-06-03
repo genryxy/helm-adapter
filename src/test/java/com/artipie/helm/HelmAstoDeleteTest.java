@@ -26,12 +26,15 @@ package com.artipie.helm;
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
-import com.artipie.asto.ValueNotFoundException;
 import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.CompletionException;
@@ -52,7 +55,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  * @since 0.3
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
-@SuppressWarnings("PMD.AvoidDuplicateLiterals")
+@SuppressWarnings({"PMD.AvoidDuplicateLiterals", "PMD.TooManyMethods"})
 final class HelmAstoDeleteTest {
     /**
      * Storage.
@@ -66,7 +69,7 @@ final class HelmAstoDeleteTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"tomcat-0.4.1.tgz", "ark-1.2.0.tgz"})
-    void throwsExceptionWhenChartOrVersionIsAbsentInIndex(final String chart) {
+    void throwsExceptionWhenChartOrVersionIsAbsentInIndex(final String chart) throws IOException {
         this.saveSourceIndex("index/index-one-ark.yaml");
         new TestResource(chart).saveTo(this.storage);
         final Throwable thr = Assertions.assertThrows(
@@ -77,10 +80,11 @@ final class HelmAstoDeleteTest {
             thr.getCause().getMessage(),
             new StringContains("Failed to delete package")
         );
+        HelmAstoDeleteTest.assertTmpDirWasRemoved();
     }
 
     @Test
-    void throwsExceptionWhenChartPassedButIndexNotExist() {
+    void throwsExceptionWhenChartPassedButIndexNotExist() throws IOException {
         final String chart = "tomcat-0.4.1.tgz";
         new TestResource(chart).saveTo(this.storage);
         final Throwable thr = Assertions.assertThrows(
@@ -91,10 +95,11 @@ final class HelmAstoDeleteTest {
             thr.getCause().getMessage(),
             new StringContains("Failed to delete package")
         );
+        HelmAstoDeleteTest.assertTmpDirWasRemoved();
     }
 
     @Test
-    void throwsExceptionWhenKeyNotExist() {
+    void throwsExceptionWhenKeyNotExist() throws IOException {
         final String chart = "not-exist.tgz";
         this.storage.save(IndexYaml.INDEX_YAML, Content.EMPTY);
         final Throwable thr = Assertions.assertThrows(
@@ -103,12 +108,13 @@ final class HelmAstoDeleteTest {
         );
         MatcherAssert.assertThat(
             thr.getCause(),
-            new IsInstanceOf(ValueNotFoundException.class)
+            new IsInstanceOf(IllegalStateException.class)
         );
+        HelmAstoDeleteTest.assertTmpDirWasRemoved();
     }
 
     @Test
-    void deletesChartFromIndexAndItsArchive() {
+    void deletesChartFromIndexAndItsArchive() throws IOException {
         final String tomcat = "tomcat-0.4.1.tgz";
         final String arkone = "ark-1.0.1.tgz";
         final String arktwo = "ark-1.2.0.tgz";
@@ -128,6 +134,7 @@ final class HelmAstoDeleteTest {
             this.storage.exists(new Key.From(arkone)).join(),
             new IsEqual<>(false)
         );
+        HelmAstoDeleteTest.assertTmpDirWasRemoved();
     }
 
     @Test
@@ -147,7 +154,7 @@ final class HelmAstoDeleteTest {
     }
 
     @Test
-    void deletesChartFromNestedFolder() {
+    void deletesChartFromNestedFolder() throws IOException {
         final String ark = "ark-1.0.1.tgz";
         final Key full = new Key.From("nested", "ark-1.0.1.tgz");
         new TestResource("index.yaml").saveTo(this.storage);
@@ -165,10 +172,11 @@ final class HelmAstoDeleteTest {
             this.storage.exists(full).join(),
             new IsEqual<>(false)
         );
+        HelmAstoDeleteTest.assertTmpDirWasRemoved();
     }
 
     @Test
-    void deletesFromIndexFileWithPrefix() {
+    void deletesFromIndexFileWithPrefix() throws IOException {
         final Key prefix = new Key.From("prefix");
         final Key keyidx = new Key.From(prefix, IndexYaml.INDEX_YAML);
         final String ark = "ark-1.0.1.tgz";
@@ -188,6 +196,7 @@ final class HelmAstoDeleteTest {
             this.storage.exists(full).join(),
             new IsEqual<>(false)
         );
+        HelmAstoDeleteTest.assertTmpDirWasRemoved();
     }
 
     private void delete(final Key prefix, final String... charts) {
@@ -212,5 +221,15 @@ final class HelmAstoDeleteTest {
                 new TestResource(path).asBytes()
             )
         ).join();
+    }
+
+    private static void assertTmpDirWasRemoved() throws IOException {
+        final Path systemtemp = Paths.get(System.getProperty("java.io.tmpdir"));
+        MatcherAssert.assertThat(
+            "Temp dir for indexes was not removed",
+            Files.list(systemtemp)
+                .noneMatch(path -> path.getFileName().toString().startsWith("index-")),
+            new IsEqual<>(true)
+        );
     }
 }
