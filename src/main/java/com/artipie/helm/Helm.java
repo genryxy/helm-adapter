@@ -193,7 +193,8 @@ public interface Helm {
                                     final AtomicReference<Path> out = new AtomicReference<>();
                                     final AtomicReference<Storage> tmpstrg;
                                     tmpstrg = new AtomicReference<>();
-                                    return this.checkAllChartsExistence(charts)
+                                    final CompletableFuture<Void> rslt = new CompletableFuture<>();
+                                    this.checkAllChartsExistence(charts)
                                         .thenAccept(
                                             noth -> {
                                                 try {
@@ -231,7 +232,23 @@ public interface Helm {
                                                     .map(this.storage::delete)
                                                     .toArray(CompletableFuture[]::new)
                                             )
+                                        ).handle(
+                                            (noth, thr) -> {
+                                                // @checkstyle NestedIfDepthCheck (10 lines)
+                                                if (thr == null) {
+                                                    rslt.complete(null);
+                                                } else {
+                                                    if (out.get() != null) {
+                                                        FileUtils.deleteQuietly(
+                                                            out.get().getParent().toFile()
+                                                        );
+                                                    }
+                                                    rslt.completeExceptionally(thr);
+                                                }
+                                                return null;
+                                            }
                                         );
+                                    return rslt;
                                 } catch (final IllegalStateException exc) {
                                     FileUtils.deleteQuietly(dir.get().toFile());
                                     throw exc;
