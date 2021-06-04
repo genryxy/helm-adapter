@@ -23,6 +23,8 @@
  */
 package com.artipie.helm;
 
+import com.artipie.ArtipieException;
+import com.artipie.asto.ArtipieIOException;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.helm.metadata.Index;
@@ -34,7 +36,6 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -160,7 +161,7 @@ public interface RemoveWriter {
                                 }
                             }
                         } catch (final IOException exc) {
-                            throw new UncheckedIOException(exc);
+                            throw new ArtipieIOException(exc);
                         }
                         return CompletableFuture.allOf();
                     }
@@ -218,20 +219,24 @@ public interface RemoveWriter {
         ) {
             for (final String pckg : todelete.keySet()) {
                 if (!fromidx.containsKey(pckg)) {
-                    throw new IllegalStateException(
-                        String.format(
-                            "Failed to delete package `%s` as it is absent in index", pckg
+                    throw new ArtipieException(
+                        new IllegalStateException(
+                            String.format(
+                                "Failed to delete package `%s` as it is absent in index", pckg
+                            )
                         )
                     );
                 }
                 for (final String vrsn : todelete.get(pckg)) {
                     if (!fromidx.get(pckg).contains(vrsn)) {
-                        // @checkstyle LineLengthCheck (3 lines)
-                        throw new IllegalStateException(
-                            String.format(
-                                "Failed to delete package `%s` with version `%s` as it is absent in index",
-                                pckg,
-                                vrsn
+                        // @checkstyle LineLengthCheck (5 lines)
+                        throw new ArtipieException(
+                            new IllegalStateException(
+                                String.format(
+                                    "Failed to delete package `%s` with version `%s` as it is absent in index",
+                                    pckg,
+                                    vrsn
+                                )
                             )
                         );
                     }

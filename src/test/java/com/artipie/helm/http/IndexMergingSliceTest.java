@@ -23,6 +23,7 @@
  */
 package com.artipie.helm.http;
 
+import com.artipie.ArtipieException;
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
@@ -203,7 +204,7 @@ final class IndexMergingSliceTest {
             new Every<>(
                 new AllOf<>(
                     Arrays.asList(
-                        new IsInstanceOf(IllegalStateException.class),
+                        new IsInstanceOf(ArtipieException.class),
                         new FeatureMatcher<Throwable, String>(
                             new StringContains("Failed to acquire lock."),
                             "an exception with message",

@@ -23,6 +23,7 @@
  */
 package com.artipie.helm.metadata;
 
+import com.artipie.asto.ArtipieIOException;
 import com.artipie.asto.FailedCompletionStage;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
@@ -30,7 +31,6 @@ import com.artipie.asto.fs.FileStorage;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -184,7 +184,7 @@ public interface Index {
                 }
                 return vrns;
             } catch (final IOException exc) {
-                throw new UncheckedIOException(exc);
+                throw new ArtipieIOException(exc);
             }
         }
     }

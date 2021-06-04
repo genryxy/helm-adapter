@@ -23,6 +23,7 @@
  */
 package com.artipie.helm;
 
+import com.artipie.asto.ArtipieIOException;
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
@@ -33,7 +34,6 @@ import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -178,7 +178,7 @@ public final class TgzArchive implements Content {
             }
             throw new IllegalStateException(String.format("'%s' file wasn't found", name));
         } catch (final IOException exc) {
-            throw new UncheckedIOException(exc);
+            throw new ArtipieIOException(exc);
         }
     }
 }
