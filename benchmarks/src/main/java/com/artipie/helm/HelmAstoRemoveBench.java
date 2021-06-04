@@ -25,9 +25,8 @@ package com.artipie.helm;
 
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
-import com.artipie.asto.Storage;
+import com.artipie.asto.memory.BenchmarkStorage;
 import com.artipie.asto.memory.InMemoryStorage;
-import com.artipie.asto.test.TestResource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -71,24 +70,20 @@ public class HelmAstoRemoveBench {
     private static final String BENCH_DIR = System.getenv("BENCH_DIR");
 
     /**
-     * Key for index file.
-     */
-    private static final Key INDEX = new Key.From("index.yaml");
-
-    /**
      * Collection of keys of files which should be removed.
      */
     private Set<Key> todelete;
 
     /**
-     * Implementation of storage for benchmarks.
+     * Backend in memory storage. Should be used only for reading
+     * after saving required information on preparation stage.
      */
-    private BenchStorage storage;
+    private InMemoryStorage inmemory;
 
     /**
-     * Content of index file.
+     * Implementation of storage for benchmarks.
      */
-    private byte[] index;
+    private BenchmarkStorage benchstrg;
 
     @Setup
     public void setup() throws IOException {
@@ -108,15 +103,12 @@ public class HelmAstoRemoveBench {
             "parse-6.2.16.tgz", "parse-7.0.0.tgz", "parse-7.1.0.tgz"
         ).map(Key.From::new)
         .collect(Collectors.toSet());
-        this.storage = new BenchStorage();
+        this.inmemory = new InMemoryStorage();
         try (Stream<Path> files = Files.list(Paths.get(HelmAstoRemoveBench.BENCH_DIR))) {
             files.forEach(
                 file -> {
                     final byte[] bytes = new Unchecked<>(() -> Files.readAllBytes(file)).value();
-                    if (file.getFileName().toString().equals(HelmAstoRemoveBench.INDEX.string())) {
-                        this.index = bytes;
-                    }
-                    this.storage.save(
+                    this.inmemory.save(
                         new Key.From(file.getFileName().toString()),
                         new Content.From(bytes)
                     ).join();
@@ -127,13 +119,12 @@ public class HelmAstoRemoveBench {
 
     @Setup(Level.Invocation)
     public void setupInvocation() {
-        this.storage.reset().toCompletableFuture().join();
-        this.storage.save(HelmAstoRemoveBench.INDEX, new Content.From(this.index)).join();
+        this.benchstrg = new BenchmarkStorage(this.inmemory);
     }
 
     @Benchmark
     public void run() {
-        new Helm.Asto(this.storage)
+        new Helm.Asto(this.benchstrg)
             .delete(this.todelete, Key.ROOT)
             .toCompletableFuture().join();
     }

@@ -25,6 +25,7 @@
   <version>1.0-SNAPSHOT</version>
   <properties>
     <jmh.version>1.29</jmh.version>
+    <asto.version>1.2.0</asto.version>
   </properties>
   <dependencies>
     <dependency>
@@ -38,9 +39,9 @@
       <version>${jmh.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.openjdk.jmh</groupId>
-      <artifactId>jmh-generator-annprocess</artifactId>
-      <version>${jmh.version}</version>
+      <groupId>com.artipie</groupId>
+      <artifactId>asto</artifactId>
+      <version>${asto.version}</version>
     </dependency>
   </dependencies>
   <profiles>
