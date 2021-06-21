@@ -27,7 +27,6 @@ import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.memory.BenchmarkStorage;
 import com.artipie.asto.memory.InMemoryStorage;
-import com.artipie.helm.metadata.IndexYaml;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,7 +34,6 @@ import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.cactoos.scalar.Unchecked;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -103,7 +101,7 @@ public class HelmAstoAddBench {
                             () -> Files.readAllBytes(file)
                         ).value();
                         final Key keyfile = new Key.From(name);
-                        toadd.add(keyfile);
+                        this.toadd.add(keyfile);
                         this.inmemory.save(
                             keyfile,
                             new Content.From(bytes)
