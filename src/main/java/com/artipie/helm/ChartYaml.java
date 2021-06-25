@@ -25,6 +25,7 @@ package com.artipie.helm;
 
 import java.util.List;
 import java.util.Map;
+import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
 /**
@@ -86,5 +87,13 @@ public final class ChartYaml {
      */
     public List<String> urls() {
         return (List<String>) this.mapping.get("urls");
+    }
+
+    @Override
+    public String toString() {
+        final DumperOptions options = new DumperOptions();
+        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        options.setPrettyFlow(true);
+        return new Yaml(options).dump(this.mapping);
     }
 }
