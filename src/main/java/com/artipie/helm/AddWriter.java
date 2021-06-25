@@ -26,10 +26,13 @@ package com.artipie.helm;
 import com.artipie.asto.ArtipieIOException;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
+import com.artipie.asto.ext.PublisherAs;
 import com.artipie.helm.metadata.Index;
 import com.artipie.helm.metadata.IndexYamlMapping;
 import com.artipie.helm.metadata.ParsedChartName;
 import com.artipie.helm.metadata.YamlWriter;
+import com.artipie.helm.misc.DateTimeNow;
+import com.artipie.helm.misc.EmptyIndex;
 import com.artipie.helm.misc.LineWriter;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -38,10 +41,15 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import org.apache.commons.lang3.tuple.Pair;
 
 /**
@@ -67,6 +75,17 @@ interface AddWriter {
         Path out,
         Map<String, Set<Pair<String, ChartYaml>>> pckgs
     );
+
+    /**
+     * Add info about charts to index. It does not make sense to check existence
+     * of charts which are added because a new index file is generated.
+     * It is important that archives from repo read one by one to avoid saving
+     * everything at once to memory.
+     * @param out Path to temporary file in which new index would be written
+     * @param charts Collection of keys of archives with charts
+     * @return Result of completion
+     */
+    CompletionStage<Void> addTrustfully(Path out, SortedSet<Key> charts);
 
     /**
      * Implementation of {@link AddWriter} for abstract storage.
@@ -168,6 +187,91 @@ interface AddWriter {
                         return CompletableFuture.allOf();
                     }
                 );
+        }
+
+        @Override
+        public CompletionStage<Void> addTrustfully(final Path out, final SortedSet<Key> charts) {
+            return CompletableFuture.supplyAsync(
+                () -> {
+                    try {
+                        final BufferedWriter bufw = new BufferedWriter(
+                            new OutputStreamWriter(Files.newOutputStream(out))
+                        );
+                        final YamlWriter writer = new YamlWriter(bufw, 2);
+                        final String[] lines = new EmptyIndex().asString().split("\n");
+                        for (final String line : lines) {
+                            if (!line.isEmpty()) {
+                                writer.writeLine(line, 0);
+                            }
+                        }
+                        final CompletableFuture<Void> result = new CompletableFuture<>();
+                        this.writeChartsToIndex(charts, writer).handle(
+                            (noth, thr) -> {
+                                if (thr == null) {
+                                    try {
+                                        bufw.close();
+                                        result.complete(null);
+                                    } catch (final IOException exc) {
+                                        throw new ArtipieIOException(exc);
+                                    }
+                                } else {
+                                    result.completeExceptionally(thr);
+                                }
+                                return null;
+                            }
+                        );
+                        return result;
+                    } catch (final IOException exc) {
+                        throw new ArtipieIOException(exc);
+                    }
+                }
+            ).thenCompose(Function.identity());
+        }
+
+        /**
+         * Write info about charts from archives to index file.
+         * @param charts Collection of keys of archives with charts
+         * @param writer Yaml writer
+         * @return Result of completion.
+         */
+        private CompletableFuture<Void> writeChartsToIndex(
+            final SortedSet<Key> charts, final YamlWriter writer
+        ) {
+            final AtomicReference<String> prev = new AtomicReference<>();
+            CompletableFuture<Void> future = CompletableFuture.allOf();
+            for (final Key key: charts) {
+                future = future.thenCompose(
+                    noth -> this.storage.value(key)
+                        .thenApply(PublisherAs::new)
+                        .thenCompose(PublisherAs::bytes)
+                        .thenApply(TgzArchive::new)
+                        .thenAccept(
+                            tgz -> {
+                                final Map<String, Object> fields;
+                                fields = new HashMap<>(tgz.chartYaml().fields());
+                                fields.putAll(tgz.metadata(Optional.empty()));
+                                fields.put("created", new DateTimeNow().asString());
+                                final String name = (String) fields.get("name");
+                                try {
+                                    if (!name.equals(prev.get())) {
+                                        writer.writeLine(String.format("%s:", name), 1);
+                                    }
+                                    prev.set(name);
+                                    writer.writeLine("-", 1);
+                                    final String[] splitted = new ChartYaml(fields)
+                                        .toString()
+                                        .split("\n");
+                                    for (final String line : splitted) {
+                                        writer.writeLine(line, 2);
+                                    }
+                                } catch (final IOException exc) {
+                                    throw new ArtipieIOException(exc);
+                                }
+                            }
+                        )
+                );
+            }
+            return future;
         }
 
         /**

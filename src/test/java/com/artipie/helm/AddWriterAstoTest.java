@@ -39,7 +39,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.CompletionException;
+import java.util.stream.Stream;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.hamcrest.MatcherAssert;
@@ -99,14 +102,7 @@ final class AddWriterAstoTest {
         new AddWriter.Asto(this.storage)
             .add(this.source, this.out, pckgs)
             .toCompletableFuture().join();
-        final IndexYamlMapping index = new IndexYamlMapping(
-            new PublisherAs(
-                this.storage.value(
-                    new Key.From(this.out.getFileName().toString())
-                ).join()
-            ).asciiString()
-                .toCompletableFuture().join()
-        );
+        final IndexYamlMapping index = this.indexFromStrg();
         MatcherAssert.assertThat(
             "Written charts are wrong",
             index.entries().keySet(),
@@ -140,6 +136,51 @@ final class AddWriterAstoTest {
             "Wrong message of handmade exception",
             exc.getMessage(),
             new StringContains("Failed to write to index `tomcat` with version `0.4.1`")
+        );
+    }
+
+    @Test
+    void addChartsTrustfully() {
+        final SortedSet<Key> charts = new TreeSet<>(Key.CMP_STRING);
+        Stream.of(
+            "tomcat-0.4.1.tgz", "ark-1.0.1.tgz", "ark-1.2.0.tgz"
+        ).map(Key.From::new)
+        .forEach(charts::add);
+        charts.forEach(chart -> new TestResource(chart.string()).saveTo(this.storage));
+        new AddWriter.Asto(this.storage)
+            .addTrustfully(this.out, charts)
+            .toCompletableFuture().join();
+        final IndexYamlMapping index = this.indexFromStrg();
+        MatcherAssert.assertThat(
+            "Written charts are wrong",
+            index.entries().keySet(),
+            Matchers.containsInAnyOrder("tomcat", "ark")
+        );
+        MatcherAssert.assertThat(
+            "Tomcat is absent",
+            index.byChartAndVersion("tomcat", "0.4.1").isPresent(),
+            new IsEqual<>(true)
+        );
+        MatcherAssert.assertThat(
+            "Ark 1.0.1 is absent",
+            index.byChartAndVersion("ark", "1.0.1").isPresent(),
+            new IsEqual<>(true)
+        );
+        MatcherAssert.assertThat(
+            "Ark 1.2.0 is absent",
+            index.byChartAndVersion("ark", "1.2.0").isPresent(),
+            new IsEqual<>(true)
+        );
+    }
+
+    private IndexYamlMapping indexFromStrg() {
+        return new IndexYamlMapping(
+            new PublisherAs(
+                this.storage.value(
+                    new Key.From(this.out.getFileName().toString())
+                ).join()
+            ).asciiString()
+            .toCompletableFuture().join()
         );
     }
 
