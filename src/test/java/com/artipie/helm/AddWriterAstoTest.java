@@ -97,7 +97,7 @@ final class AddWriterAstoTest {
     }
 
     @AfterEach
-    void tmp() {
+    void tearDown() {
         try {
             FileUtils.cleanDirectory(this.dir.toFile());
             Files.deleteIfExists(this.dir);
