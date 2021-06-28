@@ -208,14 +208,14 @@ interface AddWriter {
                         this.writeChartsToIndex(charts, writer).handle(
                             (noth, thr) -> {
                                 if (thr == null) {
-                                    try {
-                                        bufw.close();
-                                        result.complete(null);
-                                    } catch (final IOException exc) {
-                                        throw new ArtipieIOException(exc);
-                                    }
+                                    result.complete(null);
                                 } else {
                                     result.completeExceptionally(thr);
+                                }
+                                try {
+                                    bufw.close();
+                                } catch (final IOException exc) {
+                                    throw new ArtipieIOException(exc);
                                 }
                                 return null;
                             }

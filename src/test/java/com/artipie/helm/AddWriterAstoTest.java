@@ -51,12 +51,10 @@ import org.hamcrest.Matchers;
 import org.hamcrest.core.IsEqual;
 import org.hamcrest.core.IsInstanceOf;
 import org.hamcrest.core.StringContains;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.testcontainers.shaded.org.apache.commons.io.FileUtils;
 
 /**
  * Test for {@link AddWriter.Asto}.
@@ -95,11 +93,6 @@ final class AddWriterAstoTest {
         ).toPath();
         this.out = Files.createTempFile(this.dir, prfx, "-out.yaml");
         this.storage = new FileStorage(this.dir);
-    }
-
-    @AfterEach
-    void tearDown() {
-        FileUtils.deleteQuietly(this.out.toFile());
     }
 
     @Test
