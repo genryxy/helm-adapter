@@ -25,6 +25,7 @@ package com.artipie.helm;
 
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
+import com.artipie.asto.ValueNotFoundException;
 import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.fs.FileStorage;
 import com.artipie.asto.test.TestResource;
@@ -48,6 +49,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.hamcrest.core.IsEqual;
+import org.hamcrest.core.IsInstanceOf;
 import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -170,6 +172,22 @@ final class AddWriterAstoTest {
             "Ark 1.2.0 is absent",
             index.byChartAndVersion("ark", "1.2.0").isPresent(),
             new IsEqual<>(true)
+        );
+    }
+
+    @Test
+    void failedToAddTrustfullyWhenPackageIsAbsent() {
+        final SortedSet<Key> charts = new TreeSet<>(Key.CMP_STRING);
+        charts.add(new Key.From("absent-archive.tgz"));
+        final Throwable thr = Assertions.assertThrows(
+            CompletionException.class,
+            () -> new AddWriter.Asto(this.storage)
+                .addTrustfully(this.out, charts)
+                .toCompletableFuture().join()
+        );
+        MatcherAssert.assertThat(
+            thr.getCause(),
+            new IsInstanceOf(ValueNotFoundException.class)
         );
     }
 
