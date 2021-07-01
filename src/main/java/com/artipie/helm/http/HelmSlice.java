@@ -104,6 +104,17 @@ public final class HelmSlice extends Slice.Wrap {
                     )
                 ),
                 new RtRulePath(
+                    new RtRule.All(
+                        new RtRule.ByPath(DeleteChartSlice.PTRN_DEL_CHART),
+                        new ByMethodsRule(RqMethod.DELETE)
+                    ),
+                    new BasicAuthSlice(
+                        new DeleteChartSlice(storage),
+                        auth,
+                        new Permission.ByName(perms, Action.Standard.DELETE)
+                    )
+                ),
+                new RtRulePath(
                     RtRule.FALLBACK,
                     new SliceSimple(new RsWithStatus(RsStatus.METHOD_NOT_ALLOWED))
                 )
