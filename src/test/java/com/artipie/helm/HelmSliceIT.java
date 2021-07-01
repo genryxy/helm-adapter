@@ -32,7 +32,6 @@ import com.artipie.helm.http.HelmSlice;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
 import com.artipie.http.misc.RandomFreePort;
-import com.artipie.http.rs.RsStatus;
 import com.artipie.http.slice.LoggingSlice;
 import com.artipie.vertx.VertxSliceServer;
 import com.google.common.io.ByteStreams;
@@ -40,8 +39,6 @@ import io.vertx.reactivex.core.Vertx;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.Charset;
-import org.apache.commons.io.IOUtils;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsEqual;
 import org.junit.jupiter.api.AfterAll;
@@ -49,7 +46,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledIfSystemProperty;
-import org.slf4j.LoggerFactory;
 
 /**
  * Push helm chart and ensure if index.yaml is generated properly.
@@ -112,17 +108,6 @@ final class HelmSliceIT {
         HttpURLConnection conn = null;
         try {
             conn = this.putToLocalhost();
-            if (conn.getErrorStream() != null) {
-                LoggerFactory.getLogger(HelmSliceIT.class).info(
-                    "Connection error stream:\n{}",
-                    IOUtils.toString(conn.getErrorStream(), Charset.defaultCharset())
-                );
-            }
-            MatcherAssert.assertThat(
-                "Response status is 200",
-                conn.getResponseCode(),
-                new IsEqual<>(Integer.parseInt(RsStatus.OK.code()))
-            );
         } finally {
             if (conn != null) {
                 conn.disconnect();
