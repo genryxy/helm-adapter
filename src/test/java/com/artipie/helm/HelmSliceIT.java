@@ -134,7 +134,7 @@ final class HelmSliceIT {
     private HttpURLConnection putToLocalhost() throws IOException {
         final HttpURLConnection conn = (HttpURLConnection) new URL(
             String.format(
-                "http://localhost:%s/%s/%s", this.port, "some-repo", HelmSliceIT.CHART
+                "http://localhost:%s/%s", this.port, HelmSliceIT.CHART
             )
         ).openConnection();
         conn.setRequestMethod("PUT");
