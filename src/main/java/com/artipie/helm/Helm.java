@@ -284,7 +284,7 @@ public interface Helm {
             final Key keyidx = new Key.From(prefix, IndexYaml.INDEX_YAML);
             final String tmpout = String.format("index-%s-out.yaml", UUID.randomUUID().toString());
             final CompletableFuture<Void> result = new CompletableFuture<>();
-            CompletableFuture.supplyAsync(
+            CompletableFuture.runAsync(
                 () -> {
                     final String prfx = "index-";
                     try {
@@ -293,33 +293,31 @@ public interface Helm {
                     } catch (final IOException exc) {
                         throw new ArtipieIOException(exc);
                     }
-                    return CompletableFuture.allOf();
                 }
-            ).thenCompose(Function.identity())
-                .thenCompose(
-                    nothing -> this.storage.save(new Key.From(tmpout), Content.EMPTY)
-                        .thenCompose(noth -> this.storage.list(prefix))
-                        .thenApply(
-                            keys -> keys.stream()
-                                .filter(key -> key.string().endsWith(".tgz"))
-                                .collect(Collectors.toSet())
-                        ).thenCompose(
-                            keys -> {
-                                final Storage tmpstrg = new FileStorage(dir.get());
-                                final SortedSet<Key> tgzs = new TreeSet<>(Key.CMP_STRING);
-                                tgzs.addAll(keys);
-                                return new AddWriter.Asto(this.storage)
-                                    .addTrustfully(out.get(), tgzs)
-                                    .thenCompose(
-                                        noth -> this.moveFromTempStorageAndDelete(
-                                            tmpstrg,
-                                            new Key.From(out.get().getFileName().toString()),
-                                            dir.get(),
-                                            keyidx
-                                        )
-                                    );
-                            }
-                        )
+            ).thenCompose(
+                nothing -> this.storage.save(new Key.From(tmpout), Content.EMPTY)
+                    .thenCompose(noth -> this.storage.list(prefix))
+                    .thenApply(
+                        keys -> keys.stream()
+                            .filter(key -> key.string().endsWith(".tgz"))
+                            .collect(Collectors.toSet())
+                    ).thenCompose(
+                        keys -> {
+                            final Storage tmpstrg = new FileStorage(dir.get());
+                            final SortedSet<Key> tgzs = new TreeSet<>(Key.CMP_STRING);
+                            tgzs.addAll(keys);
+                            return new AddWriter.Asto(this.storage)
+                                .addTrustfully(out.get(), tgzs)
+                                .thenCompose(
+                                    noth -> this.moveFromTempStorageAndDelete(
+                                        tmpstrg,
+                                        new Key.From(out.get().getFileName().toString()),
+                                        dir.get(),
+                                        keyidx
+                                    )
+                                );
+                        }
+                    )
                 ).handle(
                     (noth, thr) -> {
                         if (thr == null) {

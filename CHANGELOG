@@ -1,3 +1,4 @@
 __NEXT__
 new: #141 - Finished implementation of Helm SDK API (`add` and `remove` methods)
 new: #115 - Reindex all packages in whole repo
+new: #106 - Added slice for deleting chart by name or by name and version
