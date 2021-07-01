@@ -24,6 +24,7 @@
 
 package com.artipie.helm;
 
+import com.artipie.asto.Content;
 import com.artipie.asto.Storage;
 import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.memory.InMemoryStorage;
@@ -31,20 +32,13 @@ import com.artipie.asto.test.TestResource;
 import com.artipie.helm.http.HelmSlice;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
-import com.artipie.http.misc.RandomFreePort;
+import com.artipie.http.Headers;
+import com.artipie.http.hm.RsHasStatus;
+import com.artipie.http.rq.RequestLine;
+import com.artipie.http.rq.RqMethod;
 import com.artipie.http.rs.RsStatus;
-import com.artipie.http.slice.LoggingSlice;
-import com.artipie.vertx.VertxSliceServer;
-import com.google.common.io.ByteStreams;
-import io.vertx.reactivex.core.Vertx;
-import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsEqual;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledIfSystemProperty;
 
@@ -56,85 +50,34 @@ import org.junit.jupiter.api.condition.DisabledIfSystemProperty;
 @DisabledIfSystemProperty(named = "os.name", matches = "Windows.*")
 final class HelmSliceIT {
     /**
-     * Vertx instance.
-     */
-    private static final Vertx VERTX = Vertx.vertx();
-
-    /**
      * Chart name.
      */
     private static final String CHART = "tomcat-0.4.1.tgz";
 
-    /**
-     * Artipie server.
-     */
-    private VertxSliceServer server;
-
-    /**
-     * Storage.
-     */
-    private Storage storage;
-
-    /**
-     * Server port.
-     */
-    private int port;
-
-    @BeforeEach
-    void setUp() {
-        this.port = new RandomFreePort().get();
-        this.storage = new InMemoryStorage();
-        this.server = new VertxSliceServer(
-            HelmSliceIT.VERTX,
-            new LoggingSlice(
-                new HelmSlice(this.storage, String.format("http://localhost:%d/", this.port))
-            ),
-            this.port
-        );
-        this.server.start();
-    }
-
-    @AfterEach
-    void tearDown() {
-        this.server.close();
-    }
-
-    @AfterAll
-    static void tearDownAll() {
-        VERTX.close();
-    }
-
     @Test
-    void indexYamlIsCorrect() throws Exception {
+    void indexYamlIsCorrect() {
+        final Storage storage = new InMemoryStorage();
         MatcherAssert.assertThat(
-            "Response status is not 200",
-            this.putToLocalhost().getResponseCode(),
-            new IsEqual<>(Integer.parseInt(RsStatus.OK.code()))
+            "Returned status is not 200",
+            new HelmSlice(storage, "http://anyhost:123/").response(
+                new RequestLine(
+                    RqMethod.PUT,
+                    String.format("/%s", HelmSliceIT.CHART)
+                ).toString(),
+                Headers.EMPTY,
+                new Content.From(new TestResource(HelmSliceIT.CHART).asBytes())
+            ),
+            new RsHasStatus(RsStatus.OK)
         );
         MatcherAssert.assertThat(
             "Generated index does not contain required chart",
             new IndexYamlMapping(
                 new PublisherAs(
-                    this.storage.value(IndexYaml.INDEX_YAML).join()
+                    storage.value(IndexYaml.INDEX_YAML).join()
                 ).asciiString()
-                    .toCompletableFuture().join()
+                .toCompletableFuture().join()
             ).byChartAndVersion("tomcat", "0.4.1").isPresent(),
             new IsEqual<>(true)
         );
-    }
-
-    private HttpURLConnection putToLocalhost() throws IOException {
-        final HttpURLConnection conn = (HttpURLConnection) new URL(
-            String.format(
-                "http://localhost:%s/%s", this.port, HelmSliceIT.CHART
-            )
-        ).openConnection();
-        conn.setRequestMethod("PUT");
-        conn.setDoOutput(true);
-        ByteStreams.copy(
-            new TestResource(HelmSliceIT.CHART).asInputStream(),
-            conn.getOutputStream()
-        );
-        return conn;
     }
 }
