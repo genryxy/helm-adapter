@@ -32,6 +32,7 @@ import com.artipie.helm.http.HelmSlice;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
 import com.artipie.http.misc.RandomFreePort;
+import com.artipie.http.rs.RsStatus;
 import com.artipie.http.slice.LoggingSlice;
 import com.artipie.vertx.VertxSliceServer;
 import com.google.common.io.ByteStreams;
@@ -105,14 +106,11 @@ final class HelmSliceIT {
 
     @Test
     void indexYamlIsCorrect() throws Exception {
-        HttpURLConnection conn = null;
-        try {
-            conn = this.putToLocalhost();
-        } finally {
-            if (conn != null) {
-                conn.disconnect();
-            }
-        }
+        MatcherAssert.assertThat(
+            "Response status is not 200",
+            this.putToLocalhost().getResponseCode(),
+            new IsEqual<>(Integer.parseInt(RsStatus.OK.code()))
+        );
         MatcherAssert.assertThat(
             "Generated index does not contain required chart",
             new IndexYamlMapping(
