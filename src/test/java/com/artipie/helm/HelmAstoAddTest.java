@@ -26,11 +26,11 @@ package com.artipie.helm;
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
-import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
+import com.artipie.helm.test.ContentOfIndex;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -76,7 +76,7 @@ final class HelmAstoAddTest {
         new TestResource(ark).saveTo(this.storage);
         this.saveSourceIndex(yaml);
         this.addFilesToIndex(Key.ROOT, tomcat, ark);
-        final IndexYamlMapping index = this.indexFromStrg(Key.ROOT);
+        final IndexYamlMapping index = new ContentOfIndex(this.storage).index();
         MatcherAssert.assertThat(
             "Some packages were missed",
             index.entries().keySet(),
@@ -104,7 +104,7 @@ final class HelmAstoAddTest {
         new TestResource(tomcat).saveTo(this.storage);
         this.saveSourceIndex(yaml);
         this.addFilesToIndex(Key.ROOT, tomcat);
-        final IndexYamlMapping index = this.indexFromStrg(Key.ROOT);
+        final IndexYamlMapping index = new ContentOfIndex(this.storage).index();
         MatcherAssert.assertThat(
             "Contains not one version for chart `tomcat`",
             index.byChart("tomcat").size(),
@@ -127,7 +127,7 @@ final class HelmAstoAddTest {
         new TestResource(ark).saveTo(this.storage);
         this.saveSourceIndex(yaml);
         this.addFilesToIndex(Key.ROOT, ark);
-        final IndexYamlMapping index = this.indexFromStrg(Key.ROOT);
+        final IndexYamlMapping index = new ContentOfIndex(this.storage).index();
         MatcherAssert.assertThat(
             "Existed version is absent",
             index.byChartAndVersion("ark", "1.0.1").isPresent(),
@@ -147,7 +147,7 @@ final class HelmAstoAddTest {
         new TestResource(ark).saveTo(this.storage);
         this.addFilesToIndex(Key.ROOT, ark);
         MatcherAssert.assertThat(
-            this.indexFromStrg(Key.ROOT)
+            new ContentOfIndex(this.storage).index()
                 .byChartAndVersion("ark", "1.0.1")
                 .isPresent(),
             new IsEqual<>(true)
@@ -179,10 +179,10 @@ final class HelmAstoAddTest {
         final String extra = "ark-1.2.0.tgz";
         new TestResource(tomcat).saveTo(this.storage, fulltomcat);
         new TestResource(extra).saveTo(this.storage);
-        new TestResource("index/index-one-ark.yaml")
-            .saveTo(this.storage, new Key.From(prefix, IndexYaml.INDEX_YAML));
+        final Key keyidx = new Key.From(prefix, IndexYaml.INDEX_YAML);
+        new TestResource("index/index-one-ark.yaml").saveTo(this.storage, keyidx);
         this.addFilesToIndex(prefix, fulltomcat.string());
-        final IndexYamlMapping index = this.indexFromStrg(prefix);
+        final IndexYamlMapping index = new ContentOfIndex(this.storage).index(keyidx);
         MatcherAssert.assertThat(
             "Some packages were missed",
             index.entries().keySet(),
@@ -227,15 +227,6 @@ final class HelmAstoAddTest {
         new Helm.Asto(this.storage)
             .add(keys, indexpath)
             .toCompletableFuture().join();
-    }
-
-    private IndexYamlMapping indexFromStrg(final Key prefix) {
-        return new IndexYamlMapping(
-            new PublisherAs(
-                this.storage.value(new Key.From(prefix, IndexYaml.INDEX_YAML)).join()
-            ).asciiString()
-            .toCompletableFuture().join()
-        );
     }
 
     private void saveSourceIndex(final String name) {

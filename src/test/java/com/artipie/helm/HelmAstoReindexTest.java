@@ -25,11 +25,11 @@ package com.artipie.helm;
 
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
-import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
+import com.artipie.helm.test.ContentOfIndex;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -76,7 +76,7 @@ final class HelmAstoReindexTest {
             this.storage.exists(IndexYaml.INDEX_YAML).join(),
             new IsEqual<>(true)
         );
-        final IndexYamlMapping index = this.indexFromStrg(IndexYaml.INDEX_YAML);
+        final IndexYamlMapping index = new ContentOfIndex(this.storage).index();
         MatcherAssert.assertThat(
             "Written charts are wrong",
             index.entries().keySet(),
@@ -97,7 +97,7 @@ final class HelmAstoReindexTest {
             this.storage.exists(keyidx).join(),
             new IsEqual<>(true)
         );
-        final IndexYamlMapping index = this.indexFromStrg(keyidx);
+        final IndexYamlMapping index = new ContentOfIndex(this.storage).index(keyidx);
         MatcherAssert.assertThat(
             "Written charts are wrong",
             index.entries().keySet(),
@@ -113,15 +113,6 @@ final class HelmAstoReindexTest {
             Files.list(systemtemp)
                 .noneMatch(path -> path.getFileName().toString().startsWith("index-")),
             new IsEqual<>(true)
-        );
-    }
-
-    private IndexYamlMapping indexFromStrg(final Key index) {
-        return new IndexYamlMapping(
-            new PublisherAs(
-                this.storage.value(index).join()
-            ).asciiString()
-            .toCompletableFuture().join()
         );
     }
 }

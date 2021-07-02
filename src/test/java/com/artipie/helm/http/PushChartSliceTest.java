@@ -26,10 +26,9 @@ package com.artipie.helm.http;
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
-import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
-import com.artipie.helm.metadata.IndexYamlMapping;
+import com.artipie.helm.test.ContentOfIndex;
 import com.artipie.http.Headers;
 import com.artipie.http.hm.RsHasStatus;
 import com.artipie.http.hm.SliceHasResponse;
@@ -98,11 +97,8 @@ final class PushChartSliceTest {
         );
         MatcherAssert.assertThat(
             "Index was not updated",
-            new IndexYamlMapping(
-                new PublisherAs(this.storage.value(new Key.From("index.yaml")).join())
-                    .asciiString()
-                    .toCompletableFuture().join()
-            ).entries().keySet(),
+            new ContentOfIndex(this.storage).index()
+                .entries().keySet(),
             new IsEqual<>(new SetOf<>("ark"))
         );
     }
