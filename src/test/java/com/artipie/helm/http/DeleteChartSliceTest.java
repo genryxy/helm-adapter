@@ -26,11 +26,10 @@ package com.artipie.helm.http;
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
-import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
-import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
+import com.artipie.helm.test.ContentOfIndex;
 import com.artipie.http.Headers;
 import com.artipie.http.hm.RsHasStatus;
 import com.artipie.http.rq.RequestLine;
@@ -93,7 +92,8 @@ final class DeleteChartSliceTest {
         );
         MatcherAssert.assertThat(
             "Deleted chart is present in index",
-            this.indexFromStrg().byChart("ark").isEmpty(),
+            new ContentOfIndex(this.storage).index()
+                .byChart("ark").isEmpty(),
             new IsEqual<>(true)
         );
         MatcherAssert.assertThat(
@@ -121,14 +121,15 @@ final class DeleteChartSliceTest {
             ),
             new RsHasStatus(RsStatus.OK)
         );
+        final IndexYamlMapping index = new ContentOfIndex(this.storage).index();
         MatcherAssert.assertThat(
             "Deleted chart is present in index",
-            this.indexFromStrg().byChartAndVersion("ark", "1.0.1").isPresent(),
+            index.byChartAndVersion("ark", "1.0.1").isPresent(),
             new IsEqual<>(false)
         );
         MatcherAssert.assertThat(
             "Second chart was also deleted",
-            this.indexFromStrg().byChartAndVersion("ark", "1.2.0").isPresent(),
+            index.byChartAndVersion("ark", "1.2.0").isPresent(),
             new IsEqual<>(true)
         );
         MatcherAssert.assertThat(
@@ -150,15 +151,6 @@ final class DeleteChartSliceTest {
                 Content.EMPTY
             ),
             new RsHasStatus(RsStatus.NOT_FOUND)
-        );
-    }
-
-    private IndexYamlMapping indexFromStrg() {
-        return new IndexYamlMapping(
-            new PublisherAs(
-                this.storage.value(IndexYaml.INDEX_YAML).join()
-            ).asciiString()
-            .toCompletableFuture().join()
         );
     }
 }

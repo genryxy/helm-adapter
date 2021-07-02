@@ -24,12 +24,10 @@
 package com.artipie.helm;
 
 import com.artipie.asto.Storage;
-import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
 import com.artipie.helm.http.HelmSlice;
-import com.artipie.helm.metadata.IndexYaml;
-import com.artipie.helm.metadata.IndexYamlMapping;
+import com.artipie.helm.test.ContentOfIndex;
 import com.artipie.http.auth.Authentication;
 import com.artipie.http.auth.JoinedPermissions;
 import com.artipie.http.auth.Permissions;
@@ -148,12 +146,9 @@ final class HelmSliceIT {
         );
         MatcherAssert.assertThat(
             "Generated index does not contain required chart",
-            new IndexYamlMapping(
-                new PublisherAs(
-                    this.storage.value(IndexYaml.INDEX_YAML).join()
-                ).asciiString()
-                .toCompletableFuture().join()
-            ).byChartAndVersion("tomcat", "0.4.1").isPresent(),
+            new ContentOfIndex(this.storage).index()
+                .byChartAndVersion("tomcat", "0.4.1")
+                .isPresent(),
             new IsEqual<>(true)
         );
     }

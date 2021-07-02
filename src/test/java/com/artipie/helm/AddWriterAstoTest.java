@@ -26,11 +26,11 @@ package com.artipie.helm;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.asto.ValueNotFoundException;
-import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.fs.FileStorage;
 import com.artipie.asto.test.TestResource;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
+import com.artipie.helm.test.ContentOfIndex;
 import com.jcabi.log.Logger;
 import java.io.File;
 import java.io.IOException;
@@ -115,7 +115,7 @@ final class AddWriterAstoTest {
         new AddWriter.Asto(this.storage)
             .add(this.source, this.out, pckgs)
             .toCompletableFuture().join();
-        final IndexYamlMapping index = this.indexFromStrg();
+        final IndexYamlMapping index = new ContentOfIndex(this.storage).index(this.pathToIndex());
         MatcherAssert.assertThat(
             "Written charts are wrong",
             index.entries().keySet(),
@@ -163,7 +163,7 @@ final class AddWriterAstoTest {
         new AddWriter.Asto(this.storage)
             .addTrustfully(this.out, charts)
             .toCompletableFuture().join();
-        final IndexYamlMapping index = this.indexFromStrg();
+        final IndexYamlMapping index = new ContentOfIndex(this.storage).index(this.pathToIndex());
         MatcherAssert.assertThat(
             "Written charts are wrong",
             index.entries().keySet(),
@@ -202,15 +202,8 @@ final class AddWriterAstoTest {
         );
     }
 
-    private IndexYamlMapping indexFromStrg() {
-        return new IndexYamlMapping(
-            new PublisherAs(
-                this.storage.value(
-                    new Key.From(this.out.getFileName().toString())
-                ).join()
-            ).asciiString()
-            .toCompletableFuture().join()
-        );
+    private Key pathToIndex() {
+        return new Key.From(this.out.getFileName().toString());
     }
 
     private static Map<String, Set<Pair<String, ChartYaml>>> packagesWithTomcat(final String path) {

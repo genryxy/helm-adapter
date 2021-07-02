@@ -31,6 +31,7 @@ import com.artipie.asto.fs.FileStorage;
 import com.artipie.asto.test.TestResource;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
+import com.artipie.helm.test.ContentOfIndex;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -98,7 +99,7 @@ final class RemoveWriterAstoTest {
             .saveTo(this.storage, new Key.From(this.source.getFileName().toString()));
         new TestResource(chart).saveTo(this.storage);
         this.delete(chart);
-        final IndexYamlMapping index = this.indexFromStrg();
+        final IndexYamlMapping index = new ContentOfIndex(this.storage).index(this.pathToIndex());
         MatcherAssert.assertThat(
             "Removed version exists",
             index.byChartAndVersion("ark", "1.0.1").isPresent(),
@@ -125,7 +126,7 @@ final class RemoveWriterAstoTest {
         new TestResource(arkone).saveTo(this.storage);
         new TestResource(arktwo).saveTo(this.storage);
         this.delete(arkone, arktwo);
-        final IndexYamlMapping index = this.indexFromStrg();
+        final IndexYamlMapping index = new ContentOfIndex(this.storage).index(this.pathToIndex());
         MatcherAssert.assertThat(
             "Removed versions exist",
             index.byChart("ark").isEmpty(),
@@ -146,7 +147,8 @@ final class RemoveWriterAstoTest {
         new TestResource(chart).saveTo(this.storage);
         this.delete(chart);
         MatcherAssert.assertThat(
-            this.indexFromStrg().entries().isEmpty(),
+            new ContentOfIndex(this.storage).index(this.pathToIndex())
+                .entries().isEmpty(),
             new IsEqual<>(true)
         );
     }
@@ -187,14 +189,7 @@ final class RemoveWriterAstoTest {
             .toCompletableFuture().join();
     }
 
-    private IndexYamlMapping indexFromStrg() {
-        return new IndexYamlMapping(
-            new PublisherAs(
-                this.storage.value(
-                    new Key.From(this.out.getFileName().toString())
-                ).join()
-            ).asciiString()
-            .toCompletableFuture().join()
-        );
+    private Key pathToIndex() {
+        return new Key.From(this.out.getFileName().toString());
     }
 }
