@@ -37,6 +37,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicReference;
@@ -79,6 +82,13 @@ public interface Helm {
      * @return Result of completion
      */
     CompletionStage<Void> delete(Collection<Key> charts, Key indexpath);
+
+    /**
+     * Creates a new index for whole repo.
+     * @param prefix Prefix to repository which should be reindexed
+     * @return Result of completion
+     */
+    CompletionStage<Void> reindex(Key prefix);
 
     /**
      * Implementation of {@link Helm} for abstract storage.
@@ -149,7 +159,9 @@ public interface Helm {
                                     )
                                 ).handle(
                                     (noth, thr) -> {
-                                        if (thr != null) {
+                                        if (thr == null) {
+                                            result.complete(null);
+                                        } else {
                                             FileUtils.deleteQuietly(out.getParent().toFile());
                                             result.completeExceptionally(thr);
                                         }
@@ -263,6 +275,61 @@ public interface Helm {
                     );
             }
             return res;
+        }
+
+        @Override
+        public CompletionStage<Void> reindex(final Key prefix) {
+            final AtomicReference<Path> dir = new AtomicReference<>();
+            final AtomicReference<Path> out = new AtomicReference<>();
+            final Key keyidx = new Key.From(prefix, IndexYaml.INDEX_YAML);
+            final String tmpout = String.format("index-%s-out.yaml", UUID.randomUUID().toString());
+            final CompletableFuture<Void> result = new CompletableFuture<>();
+            CompletableFuture.runAsync(
+                () -> {
+                    final String prfx = "index-";
+                    try {
+                        dir.set(Files.createTempDirectory(prfx));
+                        out.set(Files.createTempFile(dir.get(), prfx, "-out.yaml"));
+                    } catch (final IOException exc) {
+                        throw new ArtipieIOException(exc);
+                    }
+                }
+            ).thenCompose(
+                nothing -> this.storage.save(new Key.From(tmpout), Content.EMPTY)
+                    .thenCompose(noth -> this.storage.list(prefix))
+                    .thenApply(
+                        keys -> keys.stream()
+                            .filter(key -> key.string().endsWith(".tgz"))
+                            .collect(Collectors.toSet())
+                    ).thenCompose(
+                        keys -> {
+                            final Storage tmpstrg = new FileStorage(dir.get());
+                            final SortedSet<Key> tgzs = new TreeSet<>(Key.CMP_STRING);
+                            tgzs.addAll(keys);
+                            return new AddWriter.Asto(this.storage)
+                                .addTrustfully(out.get(), tgzs)
+                                .thenCompose(
+                                    noth -> this.moveFromTempStorageAndDelete(
+                                        tmpstrg,
+                                        new Key.From(out.get().getFileName().toString()),
+                                        dir.get(),
+                                        keyidx
+                                    )
+                                );
+                        }
+                    )
+                ).handle(
+                    (noth, thr) -> {
+                        if (thr == null) {
+                            result.complete(null);
+                        } else {
+                            FileUtils.deleteQuietly(out.get().getParent().toFile());
+                            result.completeExceptionally(thr);
+                        }
+                        return null;
+                    }
+            );
+            return result;
         }
 
         /**
