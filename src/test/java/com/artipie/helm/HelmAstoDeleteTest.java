@@ -27,11 +27,10 @@ import com.artipie.ArtipieException;
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
-import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
 import com.artipie.helm.metadata.IndexYaml;
-import com.artipie.helm.metadata.IndexYamlMapping;
+import com.artipie.helm.test.ContentOfIndex;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -125,9 +124,9 @@ final class HelmAstoDeleteTest {
         this.delete(Key.ROOT, arkone);
         MatcherAssert.assertThat(
             "Removed chart is not removed",
-            this.indexFromStrg(IndexYaml.INDEX_YAML)
+            new ContentOfIndex(this.storage).index()
                 .byChartAndVersion("ark", "1.0.1")
-            .isPresent(),
+                .isPresent(),
             new IsEqual<>(false)
         );
         MatcherAssert.assertThat(
@@ -163,7 +162,7 @@ final class HelmAstoDeleteTest {
         this.delete(Key.ROOT, full.string());
         MatcherAssert.assertThat(
             "Removed chart is not removed",
-            this.indexFromStrg(IndexYaml.INDEX_YAML)
+            new ContentOfIndex(this.storage).index()
                 .byChartAndVersion("ark", "1.0.1")
                 .isPresent(),
             new IsEqual<>(false)
@@ -187,7 +186,7 @@ final class HelmAstoDeleteTest {
         this.delete(prefix, full.string());
         MatcherAssert.assertThat(
             "Removed chart is not removed",
-            this.indexFromStrg(keyidx)
+            new ContentOfIndex(this.storage).index(keyidx)
                 .byChartAndVersion("ark", "1.0.1")
                 .isPresent(),
             new IsEqual<>(false)
@@ -205,14 +204,6 @@ final class HelmAstoDeleteTest {
             .map(Key.From::new)
             .collect(Collectors.toList());
         new Helm.Asto(this.storage).delete(keys, prefix).toCompletableFuture().join();
-    }
-
-    private IndexYamlMapping indexFromStrg(final Key path) {
-        return new IndexYamlMapping(
-            new PublisherAs(
-                this.storage.value(path).join()
-            ).asciiString().toCompletableFuture().join()
-        );
     }
 
     private void saveSourceIndex(final String path) {
