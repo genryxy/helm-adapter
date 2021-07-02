@@ -25,11 +25,13 @@ package com.artipie.helm;
 
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
+import com.artipie.asto.ValueNotFoundException;
 import com.artipie.asto.ext.PublisherAs;
 import com.artipie.asto.fs.FileStorage;
 import com.artipie.asto.test.TestResource;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
+import com.jcabi.log.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -43,16 +45,18 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CompletionException;
 import java.util.stream.Stream;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.hamcrest.core.IsEqual;
+import org.hamcrest.core.IsInstanceOf;
 import org.hamcrest.core.StringContains;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Test for {@link AddWriter.Asto}.
@@ -63,10 +67,8 @@ import org.junit.jupiter.api.io.TempDir;
 final class AddWriterAstoTest {
     /**
      * Temporary directory for all tests.
-     * @checkstyle VisibilityModifierCheck (3 lines)
      */
-    @TempDir
-    Path dir;
+    private Path dir;
 
     /**
      * Path to source index file.
@@ -85,12 +87,23 @@ final class AddWriterAstoTest {
 
     @BeforeEach
     void setUp() throws IOException {
+        this.dir = Files.createTempDirectory("");
         final String prfx = "index-";
         this.source = new File(
             Paths.get(this.dir.toString(), IndexYaml.INDEX_YAML.string()).toString()
         ).toPath();
         this.out = Files.createTempFile(this.dir, prfx, "-out.yaml");
         this.storage = new FileStorage(this.dir);
+    }
+
+    @AfterEach
+    void tearDown() {
+        try {
+            FileUtils.cleanDirectory(this.dir.toFile());
+            Files.deleteIfExists(this.dir);
+        } catch (final IOException ex) {
+            Logger.error(this, "Failed to clean directory %[exception]s", ex);
+        }
     }
 
     @Test
@@ -170,6 +183,22 @@ final class AddWriterAstoTest {
             "Ark 1.2.0 is absent",
             index.byChartAndVersion("ark", "1.2.0").isPresent(),
             new IsEqual<>(true)
+        );
+    }
+
+    @Test
+    void failsToAddTrustfullyWhenPackageIsAbsent() {
+        final SortedSet<Key> charts = new TreeSet<>(Key.CMP_STRING);
+        charts.add(new Key.From("absent-archive.tgz"));
+        final Throwable thr = Assertions.assertThrows(
+            CompletionException.class,
+            () -> new AddWriter.Asto(this.storage)
+                .addTrustfully(this.out, charts)
+                .toCompletableFuture().join()
+        );
+        MatcherAssert.assertThat(
+            thr.getCause(),
+            new IsInstanceOf(ValueNotFoundException.class)
         );
     }
 
