@@ -62,7 +62,7 @@ final class DeleteChartSliceTest {
 
     @ParameterizedTest
     @ValueSource(
-        strings = {"", "/chart?noname=no", "/chart?version=1.0.2", "/wrongPath?name=any"}
+        strings = {"", "/charts", "/charts/", "/charts/name/1.3.2/extra", "/wrong/name/0.1.1"}
         )
     void returnBadRequest(final String rqline) {
         MatcherAssert.assertThat(
@@ -84,7 +84,7 @@ final class DeleteChartSliceTest {
         MatcherAssert.assertThat(
             "Response status is not 200",
             new DeleteChartSlice(this.storage).response(
-                new RequestLine(RqMethod.DELETE, "/chart?name=ark").toString(),
+                new RequestLine(RqMethod.DELETE, "/charts/ark").toString(),
                 Headers.EMPTY,
                 Content.EMPTY
             ),
@@ -115,7 +115,7 @@ final class DeleteChartSliceTest {
         MatcherAssert.assertThat(
             "Response status is not 200",
             new DeleteChartSlice(this.storage).response(
-                new RequestLine(RqMethod.DELETE, "/chart?name=ark&version=1.0.1").toString(),
+                new RequestLine(RqMethod.DELETE, "/charts/ark/1.0.1").toString(),
                 Headers.EMPTY,
                 Content.EMPTY
             ),
@@ -140,7 +140,7 @@ final class DeleteChartSliceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/chart?name=not-exist", "/chart?name=ark&version=0.0.0"})
+    @ValueSource(strings = {"/charts/not-exist", "/charts/ark/0.0.0"})
     void failsToDeleteByNotExisted(final String rqline) {
         Stream.of("index.yaml", "ark-1.0.1.tgz", "ark-1.2.0.tgz", "tomcat-0.4.1.tgz")
             .forEach(source -> new TestResource(source).saveTo(this.storage));

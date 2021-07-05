@@ -33,6 +33,7 @@ import com.artipie.http.auth.JoinedPermissions;
 import com.artipie.http.auth.Permissions;
 import com.artipie.http.misc.RandomFreePort;
 import com.artipie.http.rs.RsStatus;
+import com.artipie.http.slice.LoggingSlice;
 import com.artipie.vertx.VertxSliceServer;
 import com.google.common.io.ByteStreams;
 import io.vertx.reactivex.core.Vertx;
@@ -192,20 +193,24 @@ final class HelmSliceIT {
         Testcontainers.exposeHostPorts(this.port);
         if (anonymous) {
             this.server = new VertxSliceServer(
-                HelmSliceIT.VERTX, new HelmSlice(this.storage, this.url), this.port
+                HelmSliceIT.VERTX,
+                new LoggingSlice(new HelmSlice(this.storage, this.url)),
+                this.port
             );
         } else {
             this.server = new VertxSliceServer(
                 HelmSliceIT.VERTX,
-                new HelmSlice(
-                    this.storage,
-                    this.url,
-                    new JoinedPermissions(
-                        new Permissions.Single(HelmSliceIT.USER, "download"),
-                        new Permissions.Single(HelmSliceIT.USER, "upload")
-                    ),
-                    new Authentication.Single(
-                        HelmSliceIT.USER, HelmSliceIT.PSWD
+                new LoggingSlice(
+                    new HelmSlice(
+                        this.storage,
+                        this.url,
+                        new JoinedPermissions(
+                            new Permissions.Single(HelmSliceIT.USER, "download"),
+                            new Permissions.Single(HelmSliceIT.USER, "upload")
+                        ),
+                        new Authentication.Single(
+                            HelmSliceIT.USER, HelmSliceIT.PSWD
+                        )
                     )
                 ),
                 this.port
