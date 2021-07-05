@@ -33,7 +33,6 @@ import com.artipie.http.Response;
 import com.artipie.http.Slice;
 import com.artipie.http.async.AsyncResponse;
 import com.artipie.http.rq.RequestLineFrom;
-import com.artipie.http.rq.RqParams;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.http.rs.RsWithStatus;
 import com.artipie.http.rs.StandardRs;
@@ -59,7 +58,7 @@ final class DeleteChartSlice implements Slice {
      * Pattern for endpoint.
      */
     static final Pattern PTRN_DEL_CHART = Pattern.compile(
-        "^/chart\\?name=[^&]*(&?version=.*)?$"
+        "^/charts/(?<name>[a-zA-Z\\-\\d.]+)/?(?<version>[a-zA-Z\\-\\d.]*)$"
     );
 
     /**
@@ -82,23 +81,24 @@ final class DeleteChartSlice implements Slice {
         final Publisher<ByteBuffer> body
     ) {
         final URI uri = new RequestLineFrom(line).uri();
-        final Matcher matcher = DeleteChartSlice.PTRN_DEL_CHART.matcher(
-            String.format("%s?%s", uri.getPath(), uri.getQuery())
-        );
+        final Matcher matcher = DeleteChartSlice.PTRN_DEL_CHART.matcher(uri.getPath());
         final Response res;
         if (matcher.matches()) {
-            final String chart = new RqParams(uri).value("name").get();
-            res = new AsyncResponse(
-                new RqParams(uri).value("version").map(
-                    vers -> new IndexYaml(this.storage)
-                        .deleteByNameAndVersion(chart, vers)
-                        .andThen(this.deleteArchives(chart, Optional.of(vers)))
-                ).orElseGet(
-                    () -> new IndexYaml(this.storage)
+            final String chart = matcher.group("name");
+            final String vers = matcher.group("version");
+            if (vers.isEmpty()) {
+                res = new AsyncResponse(
+                    new IndexYaml(this.storage)
                         .deleteByName(chart)
                         .andThen(this.deleteArchives(chart, Optional.empty()))
-                )
-            );
+                );
+            } else {
+                res = new AsyncResponse(
+                    new IndexYaml(this.storage)
+                        .deleteByNameAndVersion(chart, vers)
+                        .andThen(this.deleteArchives(chart, Optional.of(vers)))
+                );
+            }
         } else {
             res = new RsWithStatus(RsStatus.BAD_REQUEST);
         }
