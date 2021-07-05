@@ -1,8 +1,10 @@
 #!/bin/bash
 
+set -e
+
 # parameters:
 #  - bench_class - name of benchmark which will run.
-#  - version - version of adapter. It is used for specifying in output file name.
+#  - version - version of adapter. It is used for specifying name of output file.
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -61,11 +63,26 @@ echo "-------Dependencies were copied-------"
 echo "-------Benchmark starts. It is time-consuming-------"
 temp_out=$(mktemp)
 
-# unix
-env BENCH_DIR=../../../data/bundle100 java -cp "target/benchmarks.jar:target/classes/*:target/dependency/*" -Djmh.ignoreLock=true org.openjdk.jmh.Main "$bench_class" > "$temp_out"
+# Identify OS
+cygwin=false;
+mingw=false;
+case "`uname`" in
+  CYGWIN*) cygwin=true;;
+  MINGW*) mingw=true;;
+esac
 
-# windows (pay attetion to semicolon)
-# env BENCH_DIR=C:/Users/Downloads/helm100 java -cp "target\benchmarks.jar;target\classes\*;target\dependency\*" -Djmh.ignoreLock=true org.openjdk.jmh.Main "$bench_class" > "$temp_out"
+if [[ (-n "$cygwin")  || (-n "$mingw") ]]; then
+  echo "-------Use separator for Windows-------"
+	sep=";"
+else
+  echo "-------Use separator for Unix-------"
+	sep=":"
+fi
+
+env BENCH_DIR=../../../data/bundle100 \
+  java -cp "target/benchmarks.jar$sep target/classes/*$sep target/dependency/*" \
+  -Djmh.ignoreLock=true org.openjdk.jmh.Main \
+  "$bench_class" > "$temp_out"
 
 echo "Results of benchmark:"
 cat $temp_out
