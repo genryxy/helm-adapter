@@ -44,7 +44,7 @@ echo "-------Helm-adapter JAR was built -------"
 # Install built snapshot
 mvn install -DskipTests
 
-# Go to directory 
+# Go to directory
 cd benchmarks
 echo "-------Now it is in benchmarks directory-------"
 
@@ -71,7 +71,7 @@ case "`uname`" in
   MINGW*) mingw=true;;
 esac
 
-if [[ (-n "$cygwin")  || (-n "$mingw") ]]; then
+if [[ ("$cygwin" == true)  || ("$mingw" == true) ]]; then
   echo "-------Use separator for Windows-------"
 	sep=";"
 else
