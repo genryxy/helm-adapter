@@ -24,20 +24,23 @@
 package com.artipie.helm;
 
 import com.artipie.asto.ArtipieIOException;
+import com.artipie.asto.Content;
 import com.artipie.asto.Key;
+import com.artipie.asto.Remaining;
 import com.artipie.asto.Storage;
 import com.artipie.asto.ext.PublisherAs;
-import com.artipie.helm.metadata.Index;
 import com.artipie.helm.metadata.IndexYamlMapping;
 import com.artipie.helm.metadata.ParsedChartName;
 import com.artipie.helm.metadata.YamlWriter;
 import com.artipie.helm.misc.DateTimeNow;
 import com.artipie.helm.misc.EmptyIndex;
 import com.artipie.helm.misc.LineWriter;
-import java.io.BufferedReader;
+import com.artipie.http.misc.TokenizerFlatProc;
+import hu.akarnokd.rxjava2.interop.CompletableInterop;
+import io.reactivex.Completable;
+import io.reactivex.Flowable;
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -48,6 +51,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.commons.lang3.tuple.Pair;
@@ -58,20 +62,21 @@ import org.apache.commons.lang3.tuple.Pair;
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  * @checkstyle CyclomaticComplexityCheck (500 lines)
  * @checkstyle ExecutableStatementCountCheck (500 lines)
+ * @checkstyle NPathComplexityCheck (500 lines)
  */
-@SuppressWarnings("PMD.AvoidDuplicateLiterals")
+@SuppressWarnings({"PMD.AvoidDuplicateLiterals", "PMD.NPathComplexity"})
 interface AddWriter {
     /**
      * Add info about charts to index. If index contains a chart with the same
      * version, the exception should be generated.
-     * @param source Path to temporary file with index
+     * @param source Key to source index file
      * @param out Path to temporary file in which new index would be written
      * @param pckgs Packages collection which contains info about passed packages for
      *  adding to index file. There is a version and chart yaml for each package.
      * @return Result of completion
      */
     CompletionStage<Void> add(
-        Path source,
+        Key source,
         Path out,
         Map<String, Set<Pair<String, ChartYaml>>> pckgs
     );
@@ -131,62 +136,95 @@ interface AddWriter {
         @Override
         @SuppressWarnings("PMD.AssignmentInOperand")
         public CompletionStage<Void> add(
-            final Path source,
+            final Key source,
             final Path out,
             final Map<String, Set<Pair<String, ChartYaml>>> pckgs
         ) {
-            return new Index.WithBreaks(this.storage)
-                .versionsByPackages(new Key.From(source.getFileName().toString()))
-                .thenCompose(
-                    vrsns -> {
-                        try (
-                            BufferedReader br = new BufferedReader(
-                                new InputStreamReader(Files.newInputStream(source))
+            return CompletableFuture.allOf().thenCompose(
+                none -> {
+                    try {
+                        final BufferedWriter bufw = new BufferedWriter(
+                            new OutputStreamWriter(Files.newOutputStream(out))
+                        );
+                        final TokenizerFlatProc target = new TokenizerFlatProc("\n");
+                        final AtomicReference<String> name = new AtomicReference<>();
+                        final AtomicBoolean entrs = new AtomicBoolean(false);
+                        final AtomicReference<YamlWriter> writer = new AtomicReference<>();
+                        writer.set(new YamlWriter(bufw, 2));
+                        final AtomicReference<LineWriter> linewrtr = new AtomicReference<>();
+                        linewrtr.set(new LineWriter(writer.get()));
+                        return this.storage.exists(source)
+                            .thenCompose(
+                                exists -> {
+                                    final CompletionStage<Content> res;
+                                    if (exists) {
+                                        res = this.storage.value(source);
+                                    } else {
+                                        res = CompletableFuture.completedFuture(
+                                            new EmptyIndex().asContent()
+                                        );
+                                    }
+                                    return res;
+                                }
+                            ).thenAccept(cont -> cont.subscribe(target))
+                            .thenCompose(
+                                noth -> Flowable.fromPublisher(target)
+                                    .map(buf -> new String(new Remaining(buf).bytes()))
+                                    .flatMapCompletable(
+                                        line -> {
+                                            final String trimmed = line.trim();
+                                            final int lastposspace = lastPosOfSpaceInBegin(line);
+                                            entrs.compareAndSet(false, trimmed.equals(Asto.ENTRS));
+                                            if (entrs.get() && new ParsedChartName(line).valid()) {
+                                                if (name.get() == null) {
+                                                    writer.set(new YamlWriter(bufw, lastposspace));
+                                                    linewrtr.set(new LineWriter(writer.get()));
+                                                }
+                                                if (lastposspace == writer.get().indent()) {
+                                                    writeRemainedVersionsOfChart(
+                                                        name.get(), pckgs, writer.get()
+                                                    );
+                                                    name.set(trimmed.replace(":", ""));
+                                                }
+                                            }
+                                            if (entrs.get()) {
+                                                throwIfVersionExists(trimmed, name.get(), pckgs);
+                                            }
+                                            if (entrs.get() && name.get() != null
+                                                && lastposspace == 0) {
+                                                writeRemainedVersionsOfChart(
+                                                    name.get(), pckgs, writer.get()
+                                                );
+                                                writeRemainedChartsAfterCopyIndex(
+                                                    pckgs, writer.get()
+                                                );
+                                                entrs.set(false);
+                                            }
+                                            linewrtr.get().writeAndReplaceTagGenerated(line);
+                                            return Completable.complete();
+                                        }
+                                    ).to(CompletableInterop.await())
+                                    .thenCompose(
+                                        nothing -> {
+                                            if (entrs.get()) {
+                                                writeRemainedChartsAfterCopyIndex(
+                                                    pckgs, writer.get()
+                                                );
+                                            }
+                                            try {
+                                                bufw.close();
+                                            } catch (final IOException exc) {
+                                                throw new ArtipieIOException(exc);
+                                            }
+                                            return CompletableFuture.allOf();
+                                        }
+                                    )
                             );
-                            BufferedWriter bufw = new BufferedWriter(
-                                new OutputStreamWriter(Files.newOutputStream(out))
-                            )
-                        ) {
-                            String line;
-                            boolean entrs = false;
-                            String name = null;
-                            YamlWriter writer = new YamlWriter(bufw, 2);
-                            LineWriter linewrtr = new LineWriter(writer);
-                            while ((line = br.readLine()) != null) {
-                                final String trimmed = line.trim();
-                                final int lastposspace = lastPosOfSpaceInBegin(line);
-                                if (!entrs) {
-                                    entrs = trimmed.equals(Asto.ENTRS);
-                                }
-                                if (entrs && new ParsedChartName(line).valid()) {
-                                    if (name == null) {
-                                        writer = new YamlWriter(bufw, lastposspace);
-                                        linewrtr = new LineWriter(writer);
-                                    }
-                                    if (lastposspace == writer.indent()) {
-                                        writeRemainedVersionsOfChart(name, pckgs, writer);
-                                        name = trimmed.replace(":", "");
-                                    }
-                                }
-                                if (entrs) {
-                                    throwIfVersionExists(trimmed, name, pckgs);
-                                }
-                                if (entrs && name != null && lastposspace == 0) {
-                                    writeRemainedVersionsOfChart(name, pckgs, writer);
-                                    writeRemainedChartsAfterCopyIndex(pckgs, writer);
-                                    entrs = false;
-                                }
-                                linewrtr.writeAndReplaceTagGenerated(line);
-                            }
-                            if (entrs) {
-                                writeRemainedChartsAfterCopyIndex(pckgs, writer);
-                            }
-                        } catch (final IOException exc) {
-                            throw new ArtipieIOException(exc);
-                        }
-                        return CompletableFuture.allOf();
+                    } catch (final IOException exc) {
+                        throw new ArtipieIOException(exc);
                     }
-                );
+                }
+            );
         }
 
         @Override
