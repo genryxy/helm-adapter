@@ -27,8 +27,7 @@ import com.artipie.asto.Key;
 import com.artipie.asto.Remaining;
 import com.artipie.asto.Storage;
 import com.artipie.http.misc.TokenizerFlatProc;
-import hu.akarnokd.rxjava2.interop.CompletableInterop;
-import io.reactivex.Completable;
+import hu.akarnokd.rxjava2.interop.FlowableInterop;
 import io.reactivex.Flowable;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -39,7 +38,6 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Reader of `index.yaml` file which does not read the entire file into memory.
@@ -48,7 +46,6 @@ import java.util.concurrent.atomic.AtomicReference;
  *  file to temp storage. This parser should be replaced with converter from Publisher#ByteBuffer
  *  to another Publisher#ByteBuffer which is splitted by breaks (based on implementation
  *  of org.reactivestreams.Processor)
- *  @checkstyle CyclomaticComplexityCheck (500 lines)
  */
 public interface Index {
     /**
@@ -135,39 +132,48 @@ public interface Index {
         @SuppressWarnings("PMD.AssignmentInOperand")
         private CompletionStage<Map<String, Set<String>>> versionsByPckgs(final Key idx) {
             final TokenizerFlatProc target = new TokenizerFlatProc("\n");
-            final AtomicReference<String> name = new AtomicReference<>();
-            final AtomicInteger indent = new AtomicInteger();
-            indent.set(2);
-            final AtomicBoolean entrs = new AtomicBoolean();
-            entrs.set(false);
+            final AtomicInteger indent = new AtomicInteger(0);
             final Map<String, Set<String>> vrns = new ConcurrentHashMap<>();
+            final AtomicBoolean inentries = new AtomicBoolean(false);
+            final String empty = "";
             return this.storage.value(idx).thenAccept(
                 cont -> cont.subscribe(target)
             ).thenCompose(
                 noth -> Flowable.fromPublisher(target)
                     .map(buf -> new String(new Remaining(buf).bytes()))
-                    .flatMapCompletable(
-                        line -> {
-                            final String trimmed = line.trim();
-                            entrs.compareAndSet(false, trimmed.equals(WithBreaks.ENTRS));
-                            if (new ParsedChartName(line).valid()) {
-                                if (name.get() == null) {
-                                    indent.set(WithBreaks.lastPosOfSpaceInBegin(line));
-                                }
-                                if (WithBreaks.lastPosOfSpaceInBegin(line) == indent.get()) {
-                                    name.set(trimmed.replace(":", ""));
-                                    vrns.put(name.get(), new HashSet<>());
-                                }
+                    .scan(
+                        empty,
+                        (name, curr) -> {
+                            final String res;
+                            final int pos = WithBreaks.lastPosOfSpaceInBegin(curr);
+                            if (pos > 0 && indent.get() == 0) {
+                                indent.set(pos);
                             }
-                            if (entrs.get() && trimmed.startsWith(WithBreaks.VRSNS)) {
-                                vrns.get(name.get()).add(
-                                    line.replace(WithBreaks.VRSNS, "").trim()
-                                );
+                            if (curr.startsWith(WithBreaks.ENTRS)) {
+                                inentries.set(true);
+                            } else if (pos == 0) {
+                                inentries.set(false);
                             }
-                            return Completable.complete();
+                            if (new ParsedChartName(curr).valid() && pos == indent.get()) {
+                                res = curr.replace(":", "").trim();
+                            } else if (inentries.get()) {
+                                if (curr.trim().startsWith(WithBreaks.VRSNS)) {
+                                    final Set<String> existed = vrns.computeIfAbsent(
+                                        name, none -> new HashSet<>()
+                                    );
+                                    existed.add(curr.replace(WithBreaks.VRSNS, "").trim());
+                                    vrns.put(name, existed);
+                                }
+                                res = name;
+                            } else {
+                                res = empty;
+                            }
+                            return res;
                         }
-                    ).to(CompletableInterop.await())
-            ).thenApply(noth -> vrns);
+                    )
+                .to(FlowableInterop.last())
+                .thenApply(ignore -> vrns)
+            );
         }
     }
 }
