@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /**
  * The Chart.yaml file.
@@ -46,7 +47,9 @@ public final class ChartYaml {
      * @param yaml Yaml for entry of chart (one specific version)
      */
     public ChartYaml(final String yaml) {
-        this((Map<String, Object>) new Yaml().load(yaml));
+        this(
+            (Map<String, Object>) new Yaml(new SafeConstructor()).load(yaml)
+        );
     }
 
     /**
