@@ -27,7 +27,6 @@ import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.asto.ext.PublisherAs;
 import com.artipie.helm.misc.DateTimeNow;
-import io.vertx.core.impl.ConcurrentHashSet;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -131,7 +130,7 @@ interface Charts {
             fields.put("created", new DateTimeNow().asString());
             final ChartYaml chart = new ChartYaml(fields);
             final String name = chart.name();
-            pckgs.putIfAbsent(name, new ConcurrentHashSet<>());
+            pckgs.putIfAbsent(name, ConcurrentHashMap.newKeySet());
             pckgs.get(name).add(
                 new ImmutablePair<>(chart.version(), chart)
             );
