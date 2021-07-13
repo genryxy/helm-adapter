@@ -23,14 +23,13 @@
  */
 package com.artipie.helm;
 
+import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
-import com.artipie.asto.fs.FileStorage;
+import com.artipie.asto.ext.PublisherAs;
+import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
-import io.vertx.reactivex.core.Vertx;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.Optional;
 import org.cactoos.list.ListOf;
@@ -40,13 +39,11 @@ import org.hamcrest.core.AllOf;
 import org.hamcrest.core.IsEqual;
 import org.hamcrest.core.IsInstanceOf;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 /**
  * A test for {@link TgzArchive}.
  *
  * @since 0.2
- * @checkstyle MethodBodyCommentsCheck (500 lines)
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
@@ -76,25 +73,18 @@ public final class TgzArchiveTest {
     }
 
     @Test
-    public void savedCorrectly(@TempDir final Path tmp) throws IOException {
-        final Vertx vertx = Vertx.vertx();
-        // @todo #19:30min Replace FileStorage with InMemory one
-        //  Currently FileStorage is used in this test, but we need to refactor it to use InMemory
-        //  storage.
-        final Storage storage = new FileStorage(tmp);
-        final TestResource file = new TestResource("tomcat-0.4.1.tgz");
-        new TgzArchive(
-            file.asBytes()
-        ).save(storage).blockingGet();
+    public void savedCorrectly() throws IOException {
+        final Storage storage = new InMemoryStorage();
+        final String name = "tomcat-0.4.1.tgz";
+        final byte[] file = new TestResource(name).asBytes();
+        new TgzArchive(file)
+            .save(storage).blockingGet();
         MatcherAssert.assertThat(
-            Files.readAllBytes(
-                Paths.get(tmp.toAbsolutePath().toString(), "tomcat-0.4.1.tgz")
-            ),
-            new IsEqual<>(
-                file.asBytes()
-            )
+            new PublisherAs(storage.value(new Key.From(name)).join())
+                .bytes()
+                .toCompletableFuture().join(),
+            new IsEqual<>(file)
         );
-        vertx.close();
     }
 
     @Test
