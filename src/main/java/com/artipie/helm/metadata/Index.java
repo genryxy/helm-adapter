@@ -40,10 +40,6 @@ import java.util.concurrent.CompletionStage;
 /**
  * Reader of `index.yaml` file which does not read the entire file into memory.
  * @since 0.3
- * @todo #112:90min Replace parser with reactive version to avoid copying index
- *  file to temp storage. This parser should be replaced with converter from Publisher#ByteBuffer
- *  to another Publisher#ByteBuffer which is splitted by breaks (based on implementation
- *  of org.reactivestreams.Processor)
  */
 public interface Index {
     /**
