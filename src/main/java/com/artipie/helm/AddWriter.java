@@ -24,20 +24,21 @@
 package com.artipie.helm;
 
 import com.artipie.asto.ArtipieIOException;
+import com.artipie.asto.Content;
 import com.artipie.asto.Key;
+import com.artipie.asto.Remaining;
 import com.artipie.asto.Storage;
 import com.artipie.asto.ext.PublisherAs;
-import com.artipie.helm.metadata.Index;
 import com.artipie.helm.metadata.IndexYamlMapping;
 import com.artipie.helm.metadata.ParsedChartName;
 import com.artipie.helm.metadata.YamlWriter;
 import com.artipie.helm.misc.DateTimeNow;
 import com.artipie.helm.misc.EmptyIndex;
-import com.artipie.helm.misc.LineWriter;
-import java.io.BufferedReader;
+import com.artipie.http.misc.TokenizerFlatProc;
+import hu.akarnokd.rxjava2.interop.FlowableInterop;
+import io.reactivex.Flowable;
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -58,20 +59,21 @@ import org.apache.commons.lang3.tuple.Pair;
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  * @checkstyle CyclomaticComplexityCheck (500 lines)
  * @checkstyle ExecutableStatementCountCheck (500 lines)
+ * @checkstyle NPathComplexityCheck (500 lines)
  */
-@SuppressWarnings("PMD.AvoidDuplicateLiterals")
+@SuppressWarnings({"PMD.AvoidDuplicateLiterals", "PMD.NPathComplexity"})
 interface AddWriter {
     /**
      * Add info about charts to index. If index contains a chart with the same
      * version, the exception should be generated.
-     * @param source Path to temporary file with index
+     * @param source Key to source index file
      * @param out Path to temporary file in which new index would be written
      * @param pckgs Packages collection which contains info about passed packages for
      *  adding to index file. There is a version and chart yaml for each package.
      * @return Result of completion
      */
     CompletionStage<Void> add(
-        Path source,
+        Key source,
         Path out,
         Map<String, Set<Pair<String, ChartYaml>>> pckgs
     );
@@ -117,6 +119,7 @@ interface AddWriter {
 
         // @checkstyle NoJavadocForOverriddenMethodsCheck (15 lines)
         // @checkstyle JavadocParameterOrderCheck (15 lines)
+        // @checkstyle MethodBodyCommentsCheck (120 lines)
         /**
          * It has the next implementation.
          * Read index file line by line. If we are in the `entries:` section, we will check
@@ -131,62 +134,86 @@ interface AddWriter {
         @Override
         @SuppressWarnings("PMD.AssignmentInOperand")
         public CompletionStage<Void> add(
-            final Path source,
+            final Key source,
             final Path out,
             final Map<String, Set<Pair<String, ChartYaml>>> pckgs
         ) {
-            return new Index.WithBreaks(this.storage)
-                .versionsByPackages(new Key.From(source.getFileName().toString()))
-                .thenCompose(
-                    vrsns -> {
-                        try (
-                            BufferedReader br = new BufferedReader(
-                                new InputStreamReader(Files.newInputStream(source))
+            return CompletableFuture.allOf().thenCompose(
+                none -> {
+                    try {
+                        final BufferedWriter bufw = new BufferedWriter(
+                            new OutputStreamWriter(Files.newOutputStream(out))
+                        );
+                        final TokenizerFlatProc target = new TokenizerFlatProc("\n");
+                        return this.contentOfIndex(source)
+                            .thenAccept(cont -> cont.subscribe(target))
+                            .thenCompose(
+                                noth -> Flowable.fromPublisher(target)
+                                    .map(buf -> new String(new Remaining(buf).bytes()))
+                                    .scan(
+                                        new ScanContext(bufw, 2),
+                                        (ctx, curr) -> {
+                                            final String prevname = ctx.name;
+                                            final int pos = lastPosOfSpaceInBegin(curr);
+                                            // Change value of indent for writer
+                                            if (pos > 0 && prevname.isEmpty()) {
+                                                ctx.setWriter(new YamlWriter(bufw, pos));
+                                            }
+                                            // Checks whether current line from entries section
+                                            if (curr.startsWith(Asto.ENTRS)) {
+                                                ctx.setEntries(true);
+                                            } else if (pos == 0 && !curr.isEmpty()) {
+                                                ctx.setEntries(false);
+                                            }
+                                            if (ctx.inentries) {
+                                                throwIfVersionExists(curr, prevname, pckgs);
+                                            }
+                                            if (new ParsedChartName(curr).valid()
+                                                && ctx.inentries && pos == ctx.wrtr.indent()
+                                            ) {
+                                                // Updates name of chart and writes remained
+                                                // versions of chart whose name is being erased
+                                                if (!prevname.isEmpty()) {
+                                                    writeRemainedVersions(
+                                                        ctx.name, pckgs, ctx.wrtr
+                                                    );
+                                                }
+                                                ctx.setName(curr.replace(":", "").trim());
+                                            } else if (!ctx.inentries) {
+                                                ctx.setName("");
+                                            }
+                                            // If entries section ends, it will write
+                                            // remained versions and charts
+                                            if (!prevname.isEmpty() && pos == 0) {
+                                                writeRemainedVersions(prevname, pckgs, ctx.wrtr);
+                                                writeRemainedChartsAfterCopyIdx(pckgs, ctx.wrtr);
+                                            }
+                                            ctx.wrtr.writeAndReplaceTagGenerated(curr);
+                                            return ctx;
+                                        }
+                                    )
+                                    .to(FlowableInterop.last())
+                                    .thenCompose(
+                                        ctx -> {
+                                            if (ctx.inentries) {
+                                                writeRemainedChartsAfterCopyIdx(
+                                                    pckgs, ctx.wrtr
+                                                );
+                                            }
+                                            try {
+                                                bufw.close();
+                                            } catch (final IOException exc) {
+                                                throw new ArtipieIOException(exc);
+                                            }
+                                            return CompletableFuture.allOf();
+                                        }
+                                    )
                             );
-                            BufferedWriter bufw = new BufferedWriter(
-                                new OutputStreamWriter(Files.newOutputStream(out))
-                            )
-                        ) {
-                            String line;
-                            boolean entrs = false;
-                            String name = null;
-                            YamlWriter writer = new YamlWriter(bufw, 2);
-                            LineWriter linewrtr = new LineWriter(writer);
-                            while ((line = br.readLine()) != null) {
-                                final String trimmed = line.trim();
-                                final int lastposspace = lastPosOfSpaceInBegin(line);
-                                if (!entrs) {
-                                    entrs = trimmed.equals(Asto.ENTRS);
-                                }
-                                if (entrs && new ParsedChartName(line).valid()) {
-                                    if (name == null) {
-                                        writer = new YamlWriter(bufw, lastposspace);
-                                        linewrtr = new LineWriter(writer);
-                                    }
-                                    if (lastposspace == writer.indent()) {
-                                        writeRemainedVersionsOfChart(name, pckgs, writer);
-                                        name = trimmed.replace(":", "");
-                                    }
-                                }
-                                if (entrs) {
-                                    throwIfVersionExists(trimmed, name, pckgs);
-                                }
-                                if (entrs && name != null && lastposspace == 0) {
-                                    writeRemainedVersionsOfChart(name, pckgs, writer);
-                                    writeRemainedChartsAfterCopyIndex(pckgs, writer);
-                                    entrs = false;
-                                }
-                                linewrtr.writeAndReplaceTagGenerated(line);
-                            }
-                            if (entrs) {
-                                writeRemainedChartsAfterCopyIndex(pckgs, writer);
-                            }
-                        } catch (final IOException exc) {
-                            throw new ArtipieIOException(exc);
-                        }
-                        return CompletableFuture.allOf();
+                    } catch (final IOException exc) {
+                        throw new ArtipieIOException(exc);
                     }
-                );
+                }
+            );
         }
 
         @Override
@@ -226,6 +253,28 @@ interface AddWriter {
                     }
                 }
             ).thenCompose(Function.identity());
+        }
+
+        /**
+         * Obtains content of index file by key or returns an empty index file.
+         * @param source Key to source index file
+         * @return Index file by key from storage or an empty index file.
+         */
+        private CompletionStage<Content> contentOfIndex(final Key source) {
+            return this.storage.exists(source)
+                .thenCompose(
+                    exists -> {
+                        final CompletionStage<Content> res;
+                        if (exists) {
+                            res = this.storage.value(source);
+                        } else {
+                            res = CompletableFuture.completedFuture(
+                                new EmptyIndex().asContent()
+                            );
+                        }
+                        return res;
+                    }
+                );
         }
 
         /**
@@ -277,18 +326,18 @@ interface AddWriter {
         /**
          * Generates an exception if version of chart which contains in trimmed
          * line exists in packages.
-         * @param trimmed Trimmed line from index file
+         * @param line Line from index file
          * @param name Name of chart
          * @param pckgs Packages collection which contains info about passed packages for
          *  adding to index file. There is a version and chart yaml for each package.
          */
         private static void throwIfVersionExists(
-            final String trimmed,
+            final String line,
             final String name,
             final Map<String, Set<Pair<String, ChartYaml>>> pckgs
         ) {
-            if (trimmed.startsWith(Asto.VRSNS)) {
-                final String vers = trimmed.replace(Asto.VRSNS, "").trim();
+            if (line.trim().startsWith(Asto.VRSNS)) {
+                final String vers = line.trim().replace(Asto.VRSNS, "").trim();
                 if (pckgs.containsKey(name) && pckgs.get(name).stream().anyMatch(
                     pair -> pair.getLeft().equals(vers)
                 )) {
@@ -307,7 +356,7 @@ interface AddWriter {
          * @param writer Yaml writer
          * @throws IOException In case of exception during writing
          */
-        private static void writeRemainedVersionsOfChart(
+        private static void writeRemainedVersions(
             final String name,
             final Map<String, Set<Pair<String, ChartYaml>>> pckgs,
             final YamlWriter writer
@@ -331,7 +380,7 @@ interface AddWriter {
          *  adding to index file. There is a version and chart yaml for each package.
          * @param writer Yaml writer
          */
-        private static void writeRemainedChartsAfterCopyIndex(
+        private static void writeRemainedChartsAfterCopyIdx(
             final Map<String, Set<Pair<String, ChartYaml>>> pckgs,
             final YamlWriter writer
         ) {
@@ -364,6 +413,62 @@ interface AddWriter {
          */
         private static int lastPosOfSpaceInBegin(final String line) {
             return line.length() - line.replaceAll("^\\s*", "").length();
+        }
+
+        /**
+         * Class for saving context during processing of index file.
+         * It is not thread safe but {@code scan()} operation serially processes file line by line.
+         * @since 1.1.0
+         */
+        private static final class ScanContext {
+            /**
+             * Is it an entries section?
+             */
+            private boolean inentries;
+
+            /**
+             * Yaml writer.
+             */
+            private YamlWriter wrtr;
+
+            /**
+             * Latest valid parsed name of chart from index file.
+             */
+            private String name;
+
+            /**
+             * Ctor with default yaml writer.
+             * @param bufw Writer
+             * @param indent Required indent in index file
+             */
+            ScanContext(final BufferedWriter bufw, final int indent) {
+                this.wrtr = new YamlWriter(bufw, indent);
+                this.name = "";
+            }
+
+            /**
+             * Update value of location of latest written line.
+             * @param inentrs Is it an entries section?
+             */
+            private void setEntries(final boolean inentrs) {
+                this.inentries = inentrs;
+            }
+
+            /**
+             * Update value of name.
+             * @param cname New name
+             */
+            private void setName(final String cname) {
+                this.name = cname;
+            }
+
+            /**
+             * Update value of writer.
+             * @param writer New yaml writer
+             */
+            private void setWriter(final YamlWriter writer) {
+                this.wrtr = writer;
+            }
         }
     }
 }
