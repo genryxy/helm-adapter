@@ -49,7 +49,6 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.commons.lang3.tuple.Pair;
@@ -146,66 +145,59 @@ interface AddWriter {
                             new OutputStreamWriter(Files.newOutputStream(out))
                         );
                         final TokenizerFlatProc target = new TokenizerFlatProc("\n");
-                        final AtomicBoolean inentries = new AtomicBoolean(false);
-                        final AtomicReference<YamlWriter> wrtr = new AtomicReference<>();
-                        wrtr.set(new YamlWriter(bufw, 2));
-                        final String empty = "";
                         return this.contentOfIndex(source)
                             .thenAccept(cont -> cont.subscribe(target))
                             .thenCompose(
                                 noth -> Flowable.fromPublisher(target)
                                     .map(buf -> new String(new Remaining(buf).bytes()))
                                     .scan(
-                                        empty,
-                                        (name, curr) -> {
-                                            final String res;
-                                            final String trimmed = curr.trim();
+                                        new ScanContext(bufw, 2),
+                                        (ctx, curr) -> {
+                                            final String prevname = ctx.name;
                                             final int pos = lastPosOfSpaceInBegin(curr);
                                             // Change value of indent for writer
-                                            if (pos > 0 && name.isEmpty()) {
-                                                wrtr.set(new YamlWriter(bufw, pos));
+                                            if (pos > 0 && prevname.isEmpty()) {
+                                                ctx.setWriter(new YamlWriter(bufw, pos));
                                             }
                                             // Checks whether current line from entries section
                                             if (curr.startsWith(Asto.ENTRS)) {
-                                                inentries.set(true);
+                                                ctx.setEntries(true);
                                             } else if (pos == 0 && !curr.isEmpty()) {
-                                                inentries.set(false);
+                                                ctx.setEntries(false);
                                             }
-                                            if (inentries.get()) {
-                                                throwIfVersionExists(trimmed, name, pckgs);
+                                            if (ctx.inentries) {
+                                                throwIfVersionExists(curr, prevname, pckgs);
                                             }
                                             if (new ParsedChartName(curr).valid()
-                                                && inentries.get()
-                                                && pos == wrtr.get().indent()
+                                                && ctx.inentries && pos == ctx.wrtr.indent()
                                             ) {
                                                 // Updates name of chart and writes remained
                                                 // versions of chart whose name is being erased
-                                                if (!name.equals(empty)) {
-                                                    writeRemainedVersions(name, pckgs, wrtr.get());
+                                                if (!prevname.isEmpty()) {
+                                                    writeRemainedVersions(
+                                                        ctx.name, pckgs, ctx.wrtr
+                                                    );
                                                 }
-                                                res = curr.replace(":", "").trim();
-                                            } else if (inentries.get()) {
-                                                // Passes previous name to next iteration
-                                                res = name;
-                                            } else {
-                                                res = empty;
+                                                ctx.setName(curr.replace(":", "").trim());
+                                            } else if (!ctx.inentries) {
+                                                ctx.setName("");
                                             }
                                             // If entries section ends, it will write
                                             // remained versions and charts
-                                            if (!name.equals(empty) && pos == 0) {
-                                                writeRemainedVersions(name, pckgs, wrtr.get());
-                                                writeRemainedChartsAfterCopyIdx(pckgs, wrtr.get());
+                                            if (!prevname.isEmpty() && pos == 0) {
+                                                writeRemainedVersions(prevname, pckgs, ctx.wrtr);
+                                                writeRemainedChartsAfterCopyIdx(pckgs, ctx.wrtr);
                                             }
-                                            wrtr.get().writeAndReplaceTagGenerated(curr);
-                                            return res;
+                                            ctx.wrtr.writeAndReplaceTagGenerated(curr);
+                                            return ctx;
                                         }
                                     )
                                     .to(FlowableInterop.last())
                                     .thenCompose(
-                                        ignore -> {
-                                            if (inentries.get()) {
+                                        ctx -> {
+                                            if (ctx.inentries) {
                                                 writeRemainedChartsAfterCopyIdx(
-                                                    pckgs, wrtr.get()
+                                                    pckgs, ctx.wrtr
                                                 );
                                             }
                                             try {
@@ -334,18 +326,18 @@ interface AddWriter {
         /**
          * Generates an exception if version of chart which contains in trimmed
          * line exists in packages.
-         * @param trimmed Trimmed line from index file
+         * @param line Line from index file
          * @param name Name of chart
          * @param pckgs Packages collection which contains info about passed packages for
          *  adding to index file. There is a version and chart yaml for each package.
          */
         private static void throwIfVersionExists(
-            final String trimmed,
+            final String line,
             final String name,
             final Map<String, Set<Pair<String, ChartYaml>>> pckgs
         ) {
-            if (trimmed.startsWith(Asto.VRSNS)) {
-                final String vers = trimmed.replace(Asto.VRSNS, "").trim();
+            if (line.trim().startsWith(Asto.VRSNS)) {
+                final String vers = line.trim().replace(Asto.VRSNS, "").trim();
                 if (pckgs.containsKey(name) && pckgs.get(name).stream().anyMatch(
                     pair -> pair.getLeft().equals(vers)
                 )) {
@@ -421,6 +413,62 @@ interface AddWriter {
          */
         private static int lastPosOfSpaceInBegin(final String line) {
             return line.length() - line.replaceAll("^\\s*", "").length();
+        }
+
+        /**
+         * Class for saving context during processing of index file.
+         * It is not thread safe but {@code scan()} operation serially processes file line by line.
+         * @since 1.1.0
+         */
+        private static final class ScanContext {
+            /**
+             * Is it an entries section?
+             */
+            private boolean inentries;
+
+            /**
+             * Yaml writer.
+             */
+            private YamlWriter wrtr;
+
+            /**
+             * Latest valid parsed name of chart from index file.
+             */
+            private String name;
+
+            /**
+             * Ctor with default yaml writer.
+             * @param bufw Writer
+             * @param indent Required indent in index file
+             */
+            ScanContext(final BufferedWriter bufw, final int indent) {
+                this.wrtr = new YamlWriter(bufw, indent);
+                this.name = "";
+            }
+
+            /**
+             * Update value of location of latest written line.
+             * @param inentrs Is it an entries section?
+             */
+            private void setEntries(final boolean inentrs) {
+                this.inentries = inentrs;
+            }
+
+            /**
+             * Update value of name.
+             * @param cname New name
+             */
+            private void setName(final String cname) {
+                this.name = cname;
+            }
+
+            /**
+             * Update value of writer.
+             * @param writer New yaml writer
+             */
+            private void setWriter(final YamlWriter writer) {
+                this.wrtr = writer;
+            }
         }
     }
 }
