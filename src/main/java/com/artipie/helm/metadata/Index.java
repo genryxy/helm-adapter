@@ -29,15 +29,13 @@ import com.artipie.asto.Storage;
 import com.artipie.http.misc.TokenizerFlatProc;
 import hu.akarnokd.rxjava2.interop.FlowableInterop;
 import io.reactivex.Flowable;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Reader of `index.yaml` file which does not read the entire file into memory.
@@ -132,48 +130,110 @@ public interface Index {
         @SuppressWarnings("PMD.AssignmentInOperand")
         private CompletionStage<Map<String, Set<String>>> versionsByPckgs(final Key idx) {
             final TokenizerFlatProc target = new TokenizerFlatProc("\n");
-            final AtomicInteger indent = new AtomicInteger(0);
-            final Map<String, Set<String>> vrns = new ConcurrentHashMap<>();
-            final AtomicBoolean inentries = new AtomicBoolean(false);
-            final String empty = "";
             return this.storage.value(idx).thenAccept(
                 cont -> cont.subscribe(target)
             ).thenCompose(
                 noth -> Flowable.fromPublisher(target)
                     .map(buf -> new String(new Remaining(buf).bytes()))
                     .scan(
-                        empty,
-                        (name, curr) -> {
-                            final String res;
+                        new ScanContext(),
+                        (ctx, curr) -> {
                             final int pos = WithBreaks.lastPosOfSpaceInBegin(curr);
-                            if (pos > 0 && indent.get() == 0) {
-                                indent.set(pos);
+                            if (pos > 0 && ctx.indent == 0) {
+                                ctx.setIndent(pos);
                             }
                             if (curr.startsWith(WithBreaks.ENTRS)) {
-                                inentries.set(true);
+                                ctx.setEntries(true);
                             } else if (pos == 0) {
-                                inentries.set(false);
+                                ctx.setEntries(false);
                             }
-                            if (new ParsedChartName(curr).valid() && pos == indent.get()) {
-                                res = curr.replace(":", "").trim();
-                            } else if (inentries.get()) {
+                            if (new ParsedChartName(curr).valid() && pos == ctx.indent) {
+                                ctx.setName(curr.replace(":", "").trim());
+                            } else if (ctx.inentries) {
                                 if (curr.trim().startsWith(WithBreaks.VRSNS)) {
-                                    final Set<String> existed = vrns.computeIfAbsent(
-                                        name, none -> new HashSet<>()
-                                    );
-                                    existed.add(curr.replace(WithBreaks.VRSNS, "").trim());
-                                    vrns.put(name, existed);
+                                    ctx.addChartVersion(curr.replace(WithBreaks.VRSNS, "").trim());
                                 }
-                                res = name;
                             } else {
-                                res = empty;
+                                ctx.setName("");
                             }
-                            return res;
+                            return ctx;
                         }
                     )
                 .to(FlowableInterop.last())
-                .thenApply(ignore -> vrns)
+                .thenApply(ScanContext::chartVersions)
             );
+        }
+
+        /**
+         * Class for saving context during processing of index file.
+         * It is not thread safe but {@code scan()} operation serially
+         * processes file line by line.
+         * @since 1.1.0
+         */
+        private static final class ScanContext {
+            /**
+             * Charts and their versions which are contained in index file.
+             */
+            private final Map<String, Set<String>> vrsns = new HashMap<>();
+
+            /**
+             * Is it an entries section?
+             */
+            private boolean inentries;
+
+            /**
+             * Indent in yaml file.
+             */
+            private int indent;
+
+            /**
+             * Latest valid parsed name of chart from index file.
+             */
+            private String name;
+
+            /**
+             * Update value of location of latest written line.
+             * @param inentrs Is it an entries section?
+             */
+            private void setEntries(final boolean inentrs) {
+                this.inentries = inentrs;
+            }
+
+            /**
+             * Update value of indent.
+             * @param cindent New indent
+             */
+            private void setIndent(final int cindent) {
+                this.indent = cindent;
+            }
+
+            /**
+             * Update value of name.
+             * @param cname New name
+             */
+            private void setName(final String cname) {
+                this.name = cname;
+            }
+
+            /**
+             * Add a version for chart by name which is saved in current context.
+             * @param version New version
+             */
+            private void addChartVersion(final String version) {
+                final Set<String> existed = this.vrsns.computeIfAbsent(
+                    this.name, none -> new HashSet<>()
+                );
+                existed.add(version);
+                this.vrsns.put(this.name, existed);
+            }
+
+            /**
+             * Obtains versions for charts from index file.
+             * @return Charts and their versions which are contained in index file.
+             */
+            private Map<String, Set<String>> chartVersions() {
+                return Collections.unmodifiableMap(this.vrsns);
+            }
         }
     }
 }
