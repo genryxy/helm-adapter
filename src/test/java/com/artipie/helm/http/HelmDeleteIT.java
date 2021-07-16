@@ -102,7 +102,7 @@ final class HelmDeleteIT {
     }
 
     @Test
-    void chartShould() throws Exception {
+    void chartShouldBeDeleted() throws Exception {
         Stream.of("index.yaml", "ark-1.0.1.tgz", "ark-1.2.0.tgz", "tomcat-0.4.1.tgz")
             .forEach(source -> new TestResource(source).saveTo(this.storage));
         this.conn = (HttpURLConnection) new URL(

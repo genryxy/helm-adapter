@@ -23,23 +23,19 @@
  */
 package com.artipie.helm.metadata;
 
-import com.artipie.asto.ArtipieIOException;
-import com.artipie.asto.FailedCompletionStage;
 import com.artipie.asto.Key;
+import com.artipie.asto.Remaining;
 import com.artipie.asto.Storage;
-import com.artipie.asto.fs.FileStorage;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import com.artipie.http.misc.TokenizerFlatProc;
+import hu.akarnokd.rxjava2.interop.FlowableInterop;
+import io.reactivex.Flowable;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import org.apache.commons.io.FileUtils;
 
 /**
  * Reader of `index.yaml` file which does not read the entire file into memory.
@@ -48,7 +44,6 @@ import org.apache.commons.io.FileUtils;
  *  file to temp storage. This parser should be replaced with converter from Publisher#ByteBuffer
  *  to another Publisher#ByteBuffer which is splitted by breaks (based on implementation
  *  of org.reactivestreams.Processor)
- *  @checkstyle CyclomaticComplexityCheck (500 lines)
  */
 public interface Index {
     /**
@@ -100,27 +95,9 @@ public interface Index {
             return this.storage.exists(idx)
                 .thenCompose(
                     exists -> {
-                        CompletionStage<Map<String, Set<String>>> res;
+                        final CompletionStage<Map<String, Set<String>>> res;
                         if (exists) {
-                            try {
-                                final String prefix = "index-";
-                                final Path tmp = Files.createTempDirectory(prefix);
-                                final Path file = Files.createTempFile(tmp, prefix, ".yaml");
-                                res = this.storage.value(idx)
-                                    .thenCompose(
-                                        cont -> new FileStorage(tmp).save(
-                                            new Key.From(file.getFileName().toString()), cont
-                                        )
-                                    ).thenApply(ignore -> WithBreaks.versionsByPckgs(file))
-                                    .thenApply(
-                                        pckgs -> {
-                                            FileUtils.deleteQuietly(tmp.toFile());
-                                            return pckgs;
-                                        }
-                                    );
-                            } catch (final IOException exc) {
-                                res = new FailedCompletionStage<>(exc);
-                            }
+                            res = this.versionsByPckgs(idx);
                         } else {
                             res = CompletableFuture.completedFuture(new HashMap<>());
                         }
@@ -147,44 +124,115 @@ public interface Index {
          * started to read info about saved versions for this chart. When we meet
          * a line which starts with `version:`, the version in map by chart name as key
          * is added.
-         * @param file Path to file
+         * @param idx Key of index file
          * @return Parsed versions of packages from index file.
          */
         @SuppressWarnings("PMD.AssignmentInOperand")
-        private static Map<String, Set<String>> versionsByPckgs(final Path file) {
-            try (
-                BufferedReader br = new BufferedReader(
-                    new InputStreamReader(Files.newInputStream(file))
-                )
-            ) {
-                String line;
-                boolean entrs = false;
-                String name = null;
-                int indent = 2;
-                final Map<String, Set<String>> vrns = new HashMap<>();
-                while ((line = br.readLine()) != null) {
-                    final String trimmed = line.trim();
-                    if (!entrs) {
-                        entrs = trimmed.equals(WithBreaks.ENTRS);
-                    }
-                    if (new ParsedChartName(line).valid()) {
-                        if (name == null) {
-                            indent = WithBreaks.lastPosOfSpaceInBegin(line);
+        private CompletionStage<Map<String, Set<String>>> versionsByPckgs(final Key idx) {
+            final TokenizerFlatProc target = new TokenizerFlatProc("\n");
+            return this.storage.value(idx).thenAccept(
+                cont -> cont.subscribe(target)
+            ).thenCompose(
+                noth -> Flowable.fromPublisher(target)
+                    .map(buf -> new String(new Remaining(buf).bytes()))
+                    .scan(
+                        new ScanContext(),
+                        (ctx, curr) -> {
+                            final int pos = WithBreaks.lastPosOfSpaceInBegin(curr);
+                            if (pos > 0 && ctx.indent == 0) {
+                                ctx.setIndent(pos);
+                            }
+                            if (curr.startsWith(WithBreaks.ENTRS)) {
+                                ctx.setEntries(true);
+                            } else if (pos == 0) {
+                                ctx.setEntries(false);
+                            }
+                            if (new ParsedChartName(curr).valid() && pos == ctx.indent) {
+                                ctx.setName(curr.replace(":", "").trim());
+                            } else if (ctx.inentries) {
+                                if (curr.trim().startsWith(WithBreaks.VRSNS)) {
+                                    ctx.addChartVersion(curr.replace(WithBreaks.VRSNS, "").trim());
+                                }
+                            } else {
+                                ctx.setName("");
+                            }
+                            return ctx;
                         }
-                        if (WithBreaks.lastPosOfSpaceInBegin(line) == indent) {
-                            name = trimmed.replace(":", "");
-                            vrns.put(name, new HashSet<>());
-                        }
-                    }
-                    if (entrs && trimmed.startsWith(WithBreaks.VRSNS)) {
-                        vrns.get(name).add(
-                            line.replace(WithBreaks.VRSNS, "").trim()
-                        );
-                    }
-                }
-                return vrns;
-            } catch (final IOException exc) {
-                throw new ArtipieIOException(exc);
+                    )
+                .to(FlowableInterop.last())
+                .thenApply(ScanContext::chartVersions)
+            );
+        }
+
+        /**
+         * Class for saving context during processing of index file.
+         * It is not thread safe but {@code scan()} operation serially
+         * processes file line by line.
+         * @since 1.1.0
+         */
+        private static final class ScanContext {
+            /**
+             * Charts and their versions which are contained in index file.
+             */
+            private final Map<String, Set<String>> vrsns = new HashMap<>();
+
+            /**
+             * Is it an entries section?
+             */
+            private boolean inentries;
+
+            /**
+             * Indent in yaml file.
+             */
+            private int indent;
+
+            /**
+             * Latest valid parsed name of chart from index file.
+             */
+            private String name;
+
+            /**
+             * Update value of location of latest written line.
+             * @param inentrs Is it an entries section?
+             */
+            private void setEntries(final boolean inentrs) {
+                this.inentries = inentrs;
+            }
+
+            /**
+             * Update value of indent.
+             * @param cindent New indent
+             */
+            private void setIndent(final int cindent) {
+                this.indent = cindent;
+            }
+
+            /**
+             * Update value of name.
+             * @param cname New name
+             */
+            private void setName(final String cname) {
+                this.name = cname;
+            }
+
+            /**
+             * Add a version for chart by name which is saved in current context.
+             * @param version New version
+             */
+            private void addChartVersion(final String version) {
+                final Set<String> existed = this.vrsns.computeIfAbsent(
+                    this.name, none -> new HashSet<>()
+                );
+                existed.add(version);
+                this.vrsns.put(this.name, existed);
+            }
+
+            /**
+             * Obtains versions for charts from index file.
+             * @return Charts and their versions which are contained in index file.
+             */
+            private Map<String, Set<String>> chartVersions() {
+                return Collections.unmodifiableMap(this.vrsns);
             }
         }
     }
