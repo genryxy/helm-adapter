@@ -131,9 +131,8 @@ public interface Helm {
                                 final Path out = Files.createTempFile(dir.get(), prfx, "-out.yaml");
                                 final Key outidx = new Key.From(out.getFileName().toString());
                                 final Storage tmpstrg = new FileStorage(dir.get());
-                                return tmpstrg.save(outidx, Content.EMPTY)
-                                    .thenApply(noth -> new AddWriter.Asto(this.storage))
-                                    .thenCompose(writer -> writer.add(keyidx, out, pckgs))
+                                return new AddWriter.Asto(this.storage)
+                                    .add(keyidx, out, pckgs)
                                     .thenCompose(
                                         noth -> this.moveFromTempStorageAndDelete(
                                             tmpstrg, outidx, dir.get(), keyidx
@@ -183,7 +182,6 @@ public interface Helm {
                                 try {
                                     final String prfx = "index-";
                                     final AtomicReference<Key> outidx = new AtomicReference<>();
-                                    final AtomicReference<Path> src = new AtomicReference<>();
                                     final AtomicReference<Path> out = new AtomicReference<>();
                                     final AtomicReference<Storage> tmpstrg;
                                     tmpstrg = new AtomicReference<>();
@@ -193,8 +191,7 @@ public interface Helm {
                                             noth -> {
                                                 try {
                                                     dir.set(Files.createTempDirectory(prfx));
-                                                    // @checkstyle LineLengthCheck (2 lines)
-                                                    src.set(Files.createTempFile(dir.get(), prfx, ".yaml"));
+                                                    // @checkstyle LineLengthCheck (1 line)
                                                     out.set(Files.createTempFile(dir.get(), prfx, "-out.yaml"));
                                                 } catch (final IOException exc) {
                                                     throw new ArtipieIOException(exc);
@@ -205,16 +202,10 @@ public interface Helm {
                                                 );
                                             }
                                         )
-                                        .thenCompose(nothing -> this.storage.value(keyidx))
-                                        .thenCompose(
-                                            cont -> tmpstrg.get().save(
-                                                new Key.From(src.get().getFileName().toString()),
-                                                cont
-                                            )
-                                        ).thenCombine(
+                                        .thenCombine(
                                             new Charts.Asto(this.storage).versionsFor(charts),
-                                            (noth, fromidx) -> new RemoveWriter.Asto(tmpstrg.get())
-                                                .delete(src.get(), out.get(), fromidx)
+                                            (noth, fromidx) -> new RemoveWriter.Asto(this.storage)
+                                                .delete(keyidx, out.get(), fromidx)
                                         ).thenCompose(Function.identity())
                                         .thenCompose(
                                             noth -> this.moveFromTempStorageAndDelete(

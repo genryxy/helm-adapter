@@ -132,7 +132,6 @@ interface AddWriter {
          * in packages.
          */
         @Override
-        @SuppressWarnings("PMD.AssignmentInOperand")
         public CompletionStage<Void> add(
             final Key source,
             final Path out,

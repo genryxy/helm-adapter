@@ -32,11 +32,9 @@ import com.artipie.asto.test.TestResource;
 import com.artipie.helm.metadata.IndexYaml;
 import com.artipie.helm.metadata.IndexYamlMapping;
 import com.artipie.helm.test.ContentOfIndex;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -52,6 +50,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Test for {@link RemoveWriter.Asto}.
@@ -68,9 +68,9 @@ final class RemoveWriterAstoTest {
     Path dir;
 
     /**
-     * Path to source index file.
+     * Key to source index file.
      */
-    private Path source;
+    private Key source;
 
     /**
      * Path for index file where it will rewritten.
@@ -85,18 +85,16 @@ final class RemoveWriterAstoTest {
     @BeforeEach
     void setUp() throws IOException {
         final String prfx = "index-";
-        this.source = new File(
-            Paths.get(this.dir.toString(), IndexYaml.INDEX_YAML.string()).toString()
-        ).toPath();
+        this.source = IndexYaml.INDEX_YAML;
         this.out = Files.createTempFile(this.dir, prfx, "-out.yaml");
         this.storage = new FileStorage(this.dir);
     }
 
-    @Test
-    void deletesOneOfManyVersionOfChart() {
+    @ParameterizedTest
+    @ValueSource(strings = {"index.yaml", "index/index-four-spaces.yaml"})
+    void deletesOneOfManyVersionOfChart(final String idx) {
         final String chart = "ark-1.0.1.tgz";
-        new TestResource("index.yaml")
-            .saveTo(this.storage, new Key.From(this.source.getFileName().toString()));
+        new TestResource(idx).saveTo(this.storage, this.source);
         new TestResource(chart).saveTo(this.storage);
         this.delete(chart);
         final IndexYamlMapping index = new ContentOfIndex(this.storage).index(this.pathToIndex());
@@ -121,8 +119,7 @@ final class RemoveWriterAstoTest {
     void deletesAllVersionOfChart() {
         final String arkone = "ark-1.0.1.tgz";
         final String arktwo = "ark-1.2.0.tgz";
-        new TestResource("index.yaml")
-            .saveTo(this.storage, new Key.From(this.source.getFileName().toString()));
+        new TestResource("index.yaml").saveTo(this.storage, this.source);
         new TestResource(arkone).saveTo(this.storage);
         new TestResource(arktwo).saveTo(this.storage);
         this.delete(arkone, arktwo);
@@ -142,8 +139,7 @@ final class RemoveWriterAstoTest {
     @Test
     void deleteLastChartFromIndex() {
         final String chart = "ark-1.0.1.tgz";
-        new TestResource("index/index-one-ark.yaml")
-            .saveTo(this.storage, new Key.From(this.source.getFileName().toString()));
+        new TestResource("index/index-one-ark.yaml").saveTo(this.storage, this.source);
         new TestResource(chart).saveTo(this.storage);
         this.delete(chart);
         MatcherAssert.assertThat(
@@ -156,8 +152,7 @@ final class RemoveWriterAstoTest {
     @Test
     void failsToDeleteAbsentInIndexChart() {
         final String chart = "tomcat-0.4.1.tgz";
-        new TestResource("index/index-one-ark.yaml")
-            .saveTo(this.storage, new Key.From(this.source.getFileName().toString()));
+        new TestResource("index/index-one-ark.yaml").saveTo(this.storage, this.source);
         new TestResource(chart).saveTo(this.storage);
         final Throwable thr = Assertions.assertThrows(
             CompletionException.class,

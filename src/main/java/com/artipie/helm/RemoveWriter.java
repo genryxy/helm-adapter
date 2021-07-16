@@ -25,15 +25,19 @@ package com.artipie.helm;
 
 import com.artipie.ArtipieException;
 import com.artipie.asto.ArtipieIOException;
+import com.artipie.asto.Content;
 import com.artipie.asto.Key;
+import com.artipie.asto.Remaining;
 import com.artipie.asto.Storage;
 import com.artipie.helm.metadata.Index;
 import com.artipie.helm.metadata.ParsedChartName;
 import com.artipie.helm.metadata.YamlWriter;
-import java.io.BufferedReader;
+import com.artipie.helm.misc.EmptyIndex;
+import com.artipie.http.misc.TokenizerFlatProc;
+import hu.akarnokd.rxjava2.interop.FlowableInterop;
+import io.reactivex.Flowable;
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -61,12 +65,12 @@ public interface RemoveWriter {
      * in index file, an exception should be thrown. It processes source file by
      * reading batch of versions for each chart from source index. Then versions
      * which should not be deleted from file are rewritten to new index file.
-     * @param source Path to temporary file with index
+     * @param source Key to source index file
      * @param out Path to temporary file in which new index would be written
      * @param todelete Collection with charts with specified versions which should be deleted
      * @return Result of completion
      */
-    CompletionStage<Void> delete(Path source, Path out, Map<String, Set<String>> todelete);
+    CompletionStage<Void> delete(Key source, Path out, Map<String, Set<String>> todelete);
 
     /**
      * Implementation of {@link RemoveWriter} for abstract storage.
@@ -97,18 +101,14 @@ public interface RemoveWriter {
         }
 
         @Override
-        @SuppressWarnings({
-            "PMD.AssignmentInOperand",
-            "PMD.AvoidDeeplyNestedIfStmts",
-            "PMD.NPathComplexity"
-        })
+        @SuppressWarnings({"PMD.AvoidDeeplyNestedIfStmts", "PMD.NPathComplexity"})
         public CompletionStage<Void> delete(
-            final Path source,
+            final Key source,
             final Path out,
             final Map<String, Set<String>> todelete
         ) {
             return new Index.WithBreaks(this.storage)
-                .versionsByPackages(new Key.From(source.getFileName().toString()))
+                .versionsByPackages(source)
                 .thenCompose(
                     fromidx -> {
                         checkExistenceChartsToDelete(fromidx, todelete);
@@ -116,51 +116,92 @@ public interface RemoveWriter {
                     }
                 ).thenCompose(
                     noth ->  {
-                        try (
-                            BufferedReader br = new BufferedReader(
-                                new InputStreamReader(Files.newInputStream(source))
-                            );
-                            BufferedWriter bufw = new BufferedWriter(
+                        try {
+                            final BufferedWriter bufw = new BufferedWriter(
                                 new OutputStreamWriter(Files.newOutputStream(out))
-                            )
-                        ) {
-                            String line;
-                            boolean entrs = false;
-                            String name = null;
-                            final List<String> lines = new ArrayList<>(2);
-                            YamlWriter writer = new YamlWriter(bufw, 2);
-                            while ((line = br.readLine()) != null) {
-                                final String trimmed = line.trim();
-                                final int posspace = lastPosOfSpaceInBegin(line);
-                                if (!entrs) {
-                                    entrs = trimmed.equals(Asto.ENTRS);
-                                }
-                                if (entrs && new ParsedChartName(line).valid()) {
-                                    if (name == null) {
-                                        writer = new YamlWriter(bufw, posspace);
-                                    }
-                                    if (posspace == writer.indent()) {
-                                        if (name != null) {
-                                            writeIfNotContainInDeleted(lines, todelete, writer);
-                                        }
-                                        name = trimmed.replace(":", "");
-                                    }
-                                }
-                                if (entrs && name != null && posspace == 0) {
-                                    entrs = false;
-                                    writeIfNotContainInDeleted(lines, todelete, writer);
-                                }
-                                if (entrs && name != null) {
-                                    lines.add(line);
-                                }
-                                if (lines.isEmpty()) {
-                                    writer.writeAndReplaceTagGenerated(line);
-                                }
-                            }
+                            );
+                            final TokenizerFlatProc target = new TokenizerFlatProc("\n");
+                            return this.contentOfIndex(source)
+                                .thenAccept(cont -> cont.subscribe(target))
+                                .thenCompose(
+                                    none -> Flowable.fromPublisher(target)
+                                        .map(buf -> new String(new Remaining(buf).bytes()))
+                                        .scan(
+                                            new ScanContext(bufw, 2),
+                                            (ctx, curr) -> {
+                                                final String trimmed = curr.trim();
+                                                final int pos = lastPosOfSpaceInBegin(curr);
+                                                if (!ctx.inentries) {
+                                                    ctx.setEntries(trimmed.equals(Asto.ENTRS));
+                                                }
+                                                if (ctx.inentries
+                                                    && new ParsedChartName(curr).valid()) {
+                                                    if (ctx.name.isEmpty()) {
+                                                        ctx.setWriter(new YamlWriter(bufw, pos));
+                                                    }
+                                                    if (pos == ctx.wrtr.indent()) {
+                                                        if (!ctx.name.isEmpty()) {
+                                                            writeIfNotContainInDeleted(
+                                                                ctx.lines, todelete, ctx.wrtr
+                                                            );
+                                                        }
+                                                        ctx.setName(trimmed.replace(":", ""));
+                                                    }
+                                                }
+                                                if (ctx.inentries
+                                                    && !ctx.name.isEmpty()
+                                                    && pos == 0
+                                                ) {
+                                                    ctx.setEntries(false);
+                                                    writeIfNotContainInDeleted(
+                                                        ctx.lines, todelete, ctx.wrtr
+                                                    );
+                                                }
+                                                if (ctx.inentries && !ctx.name.isEmpty()) {
+                                                    ctx.addLine(curr);
+                                                }
+                                                if (ctx.lines.isEmpty()) {
+                                                    ctx.wrtr.writeAndReplaceTagGenerated(curr);
+                                                }
+                                                return ctx;
+                                            }
+                                        ).to(FlowableInterop.last())
+                                        .thenCompose(
+                                            ctx -> {
+                                                try {
+                                                    bufw.close();
+                                                } catch (final IOException exc) {
+                                                    throw new ArtipieIOException(exc);
+                                                }
+                                                return CompletableFuture.allOf();
+                                            }
+                                        )
+                                );
                         } catch (final IOException exc) {
                             throw new ArtipieIOException(exc);
                         }
-                        return CompletableFuture.allOf();
+                    }
+                );
+        }
+
+        /**
+         * Obtains content of index file by key or returns an empty index file.
+         * @param source Key to source index file
+         * @return Index file by key from storage or an empty index file.
+         */
+        private CompletionStage<Content> contentOfIndex(final Key source) {
+            return this.storage.exists(source)
+                .thenCompose(
+                    exists -> {
+                        final CompletionStage<Content> res;
+                        if (exists) {
+                            res = this.storage.value(source);
+                        } else {
+                            res = CompletableFuture.completedFuture(
+                                new EmptyIndex().asContent()
+                            );
+                        }
+                        return res;
                     }
                 );
         }
@@ -317,6 +358,76 @@ public interface RemoveWriter {
                     .orElseThrow(
                         () -> new IllegalStateException("Couldn't find version for deletion")
                     );
+            }
+        }
+
+        /**
+         * Class for saving context during processing of index file.
+         * It is not thread safe but {@code scan()} operation serially processes file line by line.
+         * @since 1.1.0
+         */
+        private static final class ScanContext {
+            /**
+             * Is it an entries section?
+             */
+            private boolean inentries;
+
+            /**
+             * Yaml writer.
+             */
+            private YamlWriter wrtr;
+
+            /**
+             * Latest valid parsed name of chart from index file.
+             */
+            private String name;
+
+            /**
+             * Part of lines from index file.
+             */
+            private final List<String> lines;
+
+            /**
+             * Ctor with default yaml writer.
+             * @param bufw Writer
+             * @param indent Required indent in index file
+             */
+            ScanContext(final BufferedWriter bufw, final int indent) {
+                this.wrtr = new YamlWriter(bufw, indent);
+                this.name = "";
+                this.lines = new ArrayList<>(2);
+            }
+
+            /**
+             * Update value of location of latest written line.
+             * @param inentrs Is it an entries section?
+             */
+            private void setEntries(final boolean inentrs) {
+                this.inentries = inentrs;
+            }
+
+            /**
+             * Update value of name.
+             * @param cname New name
+             */
+            private void setName(final String cname) {
+                this.name = cname;
+            }
+
+            /**
+             * Update value of writer.
+             * @param writer New yaml writer
+             */
+            private void setWriter(final YamlWriter writer) {
+                this.wrtr = writer;
+            }
+
+            /**
+             * Adds line from index file.
+             * @param line Line from index file
+             */
+            private void addLine(final String line) {
+                this.lines.add(line);
             }
         }
     }
