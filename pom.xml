@@ -66,15 +66,11 @@ SOFTWARE.
     <dependency>
       <groupId>com.artipie</groupId>
       <artifactId>asto</artifactId>
-      <version>v1.3.0</version>
+      <version>v1.3.1</version>
       <exclusions>
         <exclusion>
           <groupId>com.fasterxml.jackson.core</groupId>
           <artifactId>jackson-core</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>com.google.android</groupId>
-          <artifactId>annotations</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
